@@ -1,0 +1,4 @@
+[console_scripts]
+travelanalyst = assistant.cli:main
+travelanalyst-web = assistant.web:main
+viaggiaresicuri-mcp = viaggiaresicuri_mcp.server:main

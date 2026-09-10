@@ -1,0 +1,32 @@
+[project]
+name = "travelanalyst"
+version = "0.1.0"
+description = "Server MCP e assistente per le informazioni di viaggio di Viaggiare Sicuri"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "fastmcp>=4,<5",  # 4.x richiede mcp>=2: vedi nota in assistant/mcp_tools.py
+    "httpx>=0.27",
+    "rapidfuzz>=3",
+    "langchain>=1.0",
+    "langchain-openai>=1.0",
+    "langgraph>=1.0",
+    "python-dotenv>=1",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+viaggiaresicuri-mcp = "viaggiaresicuri_mcp.server:main"
+travelanalyst = "assistant.cli:main"
+travelanalyst-web = "assistant.web:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["viaggiaresicuri_mcp", "assistant"]
