@@ -14,23 +14,27 @@ from viaggiaresicuri_mcp.server import mcp
 
 @pytest.fixture(autouse=True)
 def fonte_finta(monkeypatch, country_records, albania_payload, austria_payload, alerts_payloads):
-    async def fetch(path: str):
+    def risolvi(path: str):
         if path.endswith("lista_nazioni.json"):
             return country_records
         if path.startswith("/ultima_ora/"):
             iso3 = path.rsplit("/", 1)[-1].removesuffix(".json")
             if iso3 in alerts_payloads:
                 return alerts_payloads[iso3]
-            raise SourceNotFound(path)
+            return {"ultima_ora": [], "focus": []}
         if path.endswith("/ALB.json"):
             return albania_payload
         if path.endswith("/AUT.json"):
             return austria_payload
         raise SourceNotFound(path)
 
-    monkeypatch.setattr("viaggiaresicuri_mcp.countries.fetch_json", fetch)
-    monkeypatch.setattr("viaggiaresicuri_mcp.sheet.fetch_json", fetch)
-    monkeypatch.setattr("viaggiaresicuri_mcp.alerts.fetch_json", fetch)
+    async def scarica(path: str):
+        payload = risolvi(path)
+        return json.dumps(payload, ensure_ascii=False), payload
+
+    # Si sostituisce il trasporto, non i tre moduli che lo usano: sotto la cache, così lo stesso
+    # doppio vale con la cache accesa o spenta.
+    monkeypatch.setattr("viaggiaresicuri_mcp.client._scarica", scarica)
     reset_index()
     yield
     reset_index()
@@ -54,9 +58,10 @@ class TestSuperficieDeiTool:
             "get_local_transport",
             "get_embassy_contacts",
             "get_practical_info",
-            "get_recent_alerts",
             "list_country_topics",
             "get_country_topics",
+            "search_approfondimenti",
+            "get_allerte",
         }
 
     async def test_ogni_descrizione_elenca_i_contenuti(self):
@@ -164,25 +169,6 @@ class TestFiltroArgomenti:
         assert len(payload["data"]) == 1
 
 
-class TestAllerte:
-    async def test_avvisi_dal_piu_recente(self):
-        payload = await chiama("get_recent_alerts", country="Thailandia")
-        assert len(payload["data"]) == 7
-        assert payload["updated_at"] is not None
-        assert payload["sources"]["data"].endswith("/ultima_ora/THA.json")
-
-    async def test_nessun_avviso_e_una_risposta_valida(self):
-        payload = await chiama("get_recent_alerts", country="Albania")
-        assert payload["data"] == []
-        assert payload["updated_at"] is None
-
-    async def test_la_descrizione_indirizza_le_domande_sul_presente(self):
-        async with Client(mcp) as client:
-            per_nome = {t.name: (t.description or "").lower() for t in await client.list_tools()}
-        descrizione = per_nome["get_recent_alerts"]
-        assert "adesso" in descrizione or "presente" in descrizione
-
-
 class TestErrori:
     async def test_paese_ambiguo_elenca_i_candidati(self):
         with pytest.raises(Exception) as exc:
@@ -207,3 +193,40 @@ class TestErrori:
         payload = await chiama("find_country", query="corea")
         assert payload["match"] is None
         assert {c["iso3"] for c in payload["candidates"]} == {"KOR", "PRK"}
+
+
+class TestAllerte:
+    """Il tool: i tre stati devono arrivare fino al contratto di risposta."""
+
+    async def test_stato_e_messaggio_arrivano_nella_risposta(self):
+        payload = await chiama("get_allerte", iso3="UKR")
+        dati = payload["data"]
+        assert dati["stato"] == "avvisi_presenti"
+        assert dati["messaggio"]
+        assert payload["country"]["iso3"] == "UKR"
+        assert payload["meta"]["cache_status"] == "fresh"
+
+    async def test_paese_senza_avvisi_non_e_un_errore(self):
+        payload = await chiama("get_allerte", iso3="ALB")
+        assert payload["data"]["stato"] == "nessun_avviso_pubblicato"
+        assert payload["data"]["ultima_ora"] == []
+        assert "non che il Paese sia sicuro" in payload["data"]["messaggio"]
+
+    async def test_accetta_anche_il_nome_del_paese(self):
+        """La docstring chiede l'ISO3, ma un nome non deve dare un 404 incomprensibile."""
+        payload = await chiama("get_allerte", iso3="Ucraina")
+        assert payload["country"]["iso3"] == "UKR"
+
+    async def test_la_categoria_resta_quella_della_fonte(self):
+        payload = await chiama("get_allerte", iso3="THA")
+        categorie = {a["category"] for a in payload["data"]["ultima_ora"]}
+        assert categorie == {"sicurezza", "sanita"}, "non si reinventa la tassonomia"
+
+    async def test_la_descrizione_dice_quando_chiamarlo_e_quando_no(self):
+        """È l'unico tool che si chiama senza che l'abbiano chiesto: la descrizione deve dire
+        sia quando conviene sia quando è una chiamata sprecata, o torna il riflesso a ogni turno."""
+        async with Client(mcp) as client:
+            per_nome = {t.name: (t.description or "").lower() for t in await client.list_tools()}
+        descrizione = per_nome["get_allerte"]
+        assert "anche se le allerte non sono state chieste" in descrizione
+        assert "sprecata" in descrizione

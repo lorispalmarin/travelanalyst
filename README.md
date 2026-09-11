@@ -1,385 +1,161 @@
-# Server MCP — Viaggiare Sicuri
+# Viaggiare Sicuri — server MCP e assistente
 
-Server MCP che espone le informazioni di viaggio pubblicate dall'Unità di Crisi del Ministero
-degli Affari Esteri su [viaggiaresicuri.it](https://www.viaggiaresicuri.it), pensato per un
-assistente interno a supporto di operatori e customer care.
+Un server MCP che espone le informazioni di viaggio della Farnesina come tool granulari, e un
+assistente LangChain che risponde **solo** attraverso quei tool, citando fonte e data.
 
-Copre i temi richiesti dallo scenario: requisiti di ingresso, documenti e visti, sicurezza,
-situazione sanitaria, mobilità, ambasciate e consolati, allerte recenti.
+## Quickstart
 
----
-
-## Indice
-
-- [Installazione](#installazione)
-- [Esecuzione](#esecuzione)
-- [Assistente: CLI e interfaccia web](#assistente-da-riga-di-comando)
-- [Architettura](#architettura)
-- [I tool](#i-tool)
-- [Scelte progettuali](#scelte-progettuali)
-- [Test](#test)
-- [Script di esplorazione](#script-di-esplorazione)
-- [Limiti noti](#limiti-noti)
-
----
-
-## Installazione
-
-Richiede **Python 3.11+** (sviluppato e testato su 3.12).
+Serve **Python 3.11+** (sviluppato su 3.12). Per il solo server MCP non serve alcuna credenziale:
+le fonti sono endpoint pubblici.
 
 ```bash
 git clone <repo> && cd travelanalyst
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
+cp .env.example .env        # e compila OPENAI_API_KEY
 ```
 
-Nessuna credenziale è necessaria: le fonti sono endpoint pubblici. Le chiavi OpenAI servono
-soltanto all'assistente, non a questo server.
-
-> Nota su macOS: l'installer di python.org non installa i certificati CA, quindi `urllib` fallisce
-> in SSL. Il server usa `httpx`, che porta i propri certificati, quindi non ne risente; se ne
-> risentono gli script in `scripts/`, che girano con il Python di sistema.
-
-## Esecuzione
-
-Il server parla **stdio**, il transport standard per i client MCP.
-
-```bash
-fastmcp run server.py              # per i launcher che caricano il server da file
-python server.py                   # equivalente, senza la CLI di fastmcp
-python -m viaggiaresicuri_mcp.server
-viaggiaresicuri-mcp                # console script, dopo `pip install -e .`
-```
-
-Configurazione per un client MCP (Claude Desktop, `mcp.json` e simili):
-
-```json
-{
-  "mcpServers": {
-    "viaggiaresicuri": {
-      "command": "/percorso/assoluto/travelanalyst/.venv/bin/python",
-      "args": ["/percorso/assoluto/travelanalyst/server.py"]
-    }
-  }
-}
-```
-
-### Variabili d'ambiente
-
-Tutte opzionali: servono per puntare il server a un doppio della fonte e provare gli scenari di
-guasto senza toccare il codice.
+Nel `.env` una sola variabile è obbligatoria, e serve all'assistente, non al server:
 
 | Variabile | Default | A cosa serve |
 |---|---|---|
-| `VS_BASE_URL` | `https://www.viaggiaresicuri.it` | base degli endpoint |
-| `VS_TIMEOUT_SECONDS` | `15` | timeout per richiesta |
-| `VS_MAX_ATTEMPTS` | `3` | tentativi prima di dichiarare la fonte irraggiungibile |
-| `VS_BACKOFF_SECONDS` | `0.5` | base del backoff esponenziale |
-| `VS_MAX_CONNECTIONS` | `8` | connessioni concorrenti verso la fonte |
-| `VS_USER_AGENT` | `travelanalyst-mcp/0.1 …` | user agent dichiarato |
+| `OPENAI_API_KEY` | — | **obbligatoria** per l'assistente |
+| `OPENAI_MODEL` | `gpt-5.6-luna` | modello di chat |
+| `OPENAI_BASE_URL` | vuoto (OpenAI) | endpoint alternativo, es. quello Azure |
+| `EMBEDDING_API_KEY` | `OPENAI_API_KEY` | vettorizza le query di ricerca |
+| `VS_CACHE_TTL_SECONDS` | `21600` (6 h) | soglia di rivalidazione della cache |
+| `VS_ALERTS_TTL_SECONDS` | `900` (15 min) | la stessa soglia, per i soli avvisi |
 
----
-
-## Assistente da riga di comando
-
-
-L'assistente è un agente LangChain che risponde **solo** con i tool del server MCP, disponibile
-da riga di comando e da browser. Serve una chiave OpenAI:
+L'elenco completo è in [.env.example](.env.example), con il significato di ciascuna.
 
 ```bash
-cp .env.example .env      # poi inserire OPENAI_API_KEY
-travelanalyst             # oppure: python -m assistant.cli
+.venv/bin/travelanalyst              # assistente da riga di comando
+.venv/bin/travelanalyst-web          # stessa cosa via browser, http://127.0.0.1:8000
+.venv/bin/python server.py           # solo il server MCP, su stdio
+make test                            # 212 test offline, nessuna rete
+make test-all                        # aggiunge 8 test sulla fonte reale e 2 sul modello
 ```
 
+L'indice della ricerca semantica è committato in `data/`, quindi il server parte già completo di
+tutti e 11 i tool: `make ingest` serve solo a ricostruirlo, e richiede una chiave di embedding.
+
+## Una sessione vera
+
+Copiata da un'esecuzione reale. Ho tolto i codici colore e le righe di log, e riportato la
+domanda sulla riga del prompt — nella cattura arrivava da stdin, quindi non veniva riecheggiata.
+Il resto è testuale. La domanda parla **solo di documenti**: l'allerta in testa è il sistema che
+fa il suo lavoro.
+
 ```
+$ .venv/bin/travelanalyst
+avvio del server MCP…
+INFO:viaggiaresicuri_mcp.server:indice degli approfondimenti: 124 chunk
+
 Assistente Viaggiare Sicuri
-gpt-5.6-luna via Responses API su api.openai.com · 10 tool · /aiuto per i comandi
+gpt-5.6-luna via Responses API su api.openai.com · 11 tool · /aiuto per i comandi
 
-› Un cliente è stato derubato del passaporto a Valona, in Albania. Chi contatto?
+› Che documenti servono per andare in Ucraina?
   → find_country
-  → get_embassy_contacts
-  → get_practical_info
+  → get_entry_requirements
+  → get_allerte
 
-Il cliente deve contattare il Consolato Generale d'Italia a Valona e, se serve un
-intervento immediato, la Polizia albanese al 112.
-…
+**Attenzione:** la Farnesina sconsiglia **assolutamente tutti i viaggi verso l'Ucraina**, a
+qualsiasi titolo, a causa della situazione di sicurezza e degli attacchi aerei in corso.
+
+Per un cittadino italiano:
+
+- **Passaporto:** necessario, con almeno **3 (tre) mesi di validità residua**. All'ingresso
+  possono essere richiesti i dati biometrici, comprese le impronte digitali.
+- **Visto:** non necessario per i cittadini UE per soggiorni inferiori a **90 giorni**. Per
+  soggiorni più lunghi occorre rivolgersi agli Uffici diplomatico/consolari dell'Ucraina in Italia.
+- **Minori:** la scheda rimanda alla pagina ministeriale sui documenti per i viaggi all'estero
+  dei minori: https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio
+- **Doppia cittadinanza italiana e ucraina:** in Ucraina la persona è considerata dalle autorità
+  locali esclusivamente cittadina ucraina. I cittadini italiani di sesso maschile tra 18 e 60
+  anni, se anche cittadini ucraini o con pratica di cittadinanza in corso, possono essere
+  impossibilitati a lasciare il Paese. Per l'espatrio è richiesto un passaporto ucraino valido;
+  il solo passaporto italiano non è sufficiente.
+
+**Fonte:** scheda Ucraina – viaggiaresicuri.it, aggiornata al **17 agosto 2026**; avviso
+Farnesina, aggiornato al **18 agosto 2026**.
+
+Le informazioni sono di orientamento preliminare e possono variare: prima della partenza vanno
+verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri
+legali o sanitari.
 ```
 
-La riga grigia con le frecce elenca i tool man mano che vengono chiamati: serve a mostrare che
-la risposta viene dalla fonte e non dalla memoria del modello. Comandi: `/nuovo` azzera la
-conversazione, `/tool` elenca i tool, `/esci` chiude.
+Le tre righe grigie sono le chiamate al server MCP: la risposta viene da lì, non dalla memoria del
+modello. `get_allerte` non era stato chiesto — l'assistente decide se consultarlo, e qui un avviso
+in corso cambiava l'inquadramento della risposta.
 
-### Interfaccia web
+## Cosa funziona
 
-```bash
-travelanalyst-web      # oppure: python -m assistant.web
-# poi http://127.0.0.1:8000
-```
+- **Tutti e 7 i temi della traccia**, su 222 Paesi: requisiti d'ingresso, documenti e visti,
+  sicurezza, salute, mobilità, ambasciate e consolati, allerte.
+- **Il contratto regge sulla fonte vera.** Un test di rete scarica e valida tutte e 222 le schede
+  contro i modelli Pydantic: se la Farnesina cambia una chiave, lo dice il test.
+- **La fonte irraggiungibile non azzittisce l'assistente**: si serve l'ultima copia locale,
+  dichiarata come tale nella risposta.
+- **"Non pubblicato" non diventa mai "nessun rischio"**, né sui campi vuoti della scheda né
+  sull'assenza di avvisi. È imposto dallo schema, non solo dal prompt.
 
-Una conversazione a turni, con la cronologia che resta e il contesto che si mantiene: dopo aver
-chiesto dei contatti a Valona, "e i numeri di emergenza locali?" viene capito senza ripetere il
-Paese.
+## Cosa non funziona
 
-Mentre l'assistente lavora si apre da solo un blocco di **ragionamento e strumenti**: i riassunti
-di ragionamento del modello e ogni chiamata al server MCP, con un pallino che pulsa finché il
-tool è in corso e diventa verde o rosso alla risposta. Cliccando una card si vedono gli
-argomenti passati e il JSON restituito. A risposta conclusa il blocco si richiude in una riga —
-*"Ragionamento e 2 passi · 8,0 s"* — e resta lì per chi vuole riaprirlo.
+- **Nessuno storico e nessuna query cross-Paese.** "Quali Paesi hanno allerte attive" non si può
+  chiedere: ogni tool guarda un Paese alla volta.
+- **Il retrieval sugli approfondimenti ha un difetto misurato**: per "smarrimento del passaporto"
+  il chunk giusto arriva secondo, battuto da uno sui documenti rinvenuti all'estero.
+- **L'indice semantico è uno snapshot**, ricostruito a mano con `make ingest`.
+- **La qualità delle risposte non è valutata**: la eval verifica quali tool vengono chiamati e la
+  presenza o assenza di stringhe precise, non se la risposta è scritta bene.
+- **L'agente proattivo è solo progettato**, non implementato: vedi [PROACTIVE_AGENT.md](PROACTIVE_AGENT.md).
 
-È il punto dell'interfaccia: rendere verificabile a occhio da dove viene ogni informazione. Si
-vede il tool chiamato, con quali argomenti, cosa ha risposto, e come quella risposta finisce nel
-testo finale.
+## I test
 
-### Configurazione
+| Suite | Comando | Copre | Esito |
+|---|---|---|---|
+| offline | `make test` | 212 test su contratto, normalizzazione, cache, tool, prompt | verdi |
+| fonte reale | `pytest -m network` | 8 test: tutte le 222 schede validate, invarianti sui campi vuoti | verdi |
+| eval del modello | `pytest -m llm -s` | 12 casi sull'assistente vero + riuso su due turni | 12/12 |
 
-| Variabile | Default | Note |
-|---|---|---|
-| `OPENAI_API_KEY` | — | obbligatoria |
-| `OPENAI_MODEL` | `gpt-5.6-luna` | il modello indicato dalla traccia |
-| `OPENAI_BASE_URL` | vuoto | per l'endpoint Azure: `https://…/openai/v1/` |
-| `OPENAI_USE_RESPONSES_API` | `true` | vedi sotto |
-| `ASSISTANT_MAX_STEPS` | `12` | passi massimi per domanda |
+I 12 casi asseriscono sulla traccia delle chiamate, che è deterministica, e sul testo solo per
+presenze e assenze precise: che un'allerta compaia nei primi 400 caratteri e prima della prima
+menzione di "passaporto"; che un numero di emergenza sia riportato cifra per cifra; che
+l'assenza di avvisi non diventi mai "il Paese è sicuro"; che una domanda puntuale **non** paghi
+una chiamata alle allerte; che un Paese ambiguo non venga scelto d'ufficio.
 
-`gpt-5.6-luna` ragiona di default, e con il reasoning attivo le chiamate a tool passano solo
-dalla **Responses API**: su `/v1/chat/completions` l'API risponde 400. L'alternativa sarebbe
-`reasoning_effort="none"`, che però spegne il ragionamento proprio dove serve — scegliere ed
-enchainare i tool. Il modello non accetta `temperature` diversa dal default, quindi non viene
-impostata.
+Sono però casi che ho scritto io, partendo dai difetti che avevo già trovato: sono copertura di
+regressione, non una misura indipendente della qualità.
 
-Passare all'endpoint Azure della traccia è un cambio di `OPENAI_BASE_URL`, senza toccare codice.
+## I documenti
 
-### Perché non `langchain-mcp-adapters`
-
-La libreria ufficiale di LangChain per MCP richiede `mcp<2.0`, mentre FastMCP 4 richiede
-`mcp>=2`: non esiste combinazione di versioni che le tenga insieme, e installarle nello stesso
-ambiente retrocede `mcp` e rompe il server. Fra retrocedere FastMCP e scrivere una cinquantina
-di righe di adattatore, la seconda costa meno e non lega il server alle versioni di una libreria
-di terze parti: sta in [`assistant/mcp_tools.py`](assistant/mcp_tools.py) e non definisce
-nessun tool, li legge da quelli che il server pubblica.
-
----
-
-## Architettura
-
-### Componenti
-
-```
- ┌──────────────────┐
- │ assistant/cli.py │  REPL
- ├──────────────────┤   ┌──────────────────────────┐
- │ assistant/web.py │──►│ assistant/agent.py       │  LangChain: create_agent
- │  FastAPI + SSE   │   │ + mcp_tools.py (ponte)   │  tool letti dal server
- └──────────────────┘   └────────────┬─────────────┘
-                                     │ stdio, processo separato
-                    ┌────────────────▼─────────────┐
-   client MCP  ───► │  server.py — 10 tool FastMCP │
-   (o assistente)   └───────────────┬──────────────┘
-                                    │ viste sul contratto
-                    ┌───────────────▼──────────────┐
-                    │  sheet.py / alerts.py        │  composizione, fallback, filtri
-                    └───────────────┬──────────────┘
-                                    │
-                    ┌───────────────▼──────────────┐
-                    │  models.py — contratti       │  validazione Pydantic
-                    │  normalize.py — HTML→testo   │  link, rimandi, stato
-                    │  countries.py — nome→ISO3    │  alias, fuzzy, ambiguità
-                    └───────────────┬──────────────┘
-                                    │
-                    ┌───────────────▼──────────────┐
-                    │  client.py — httpx + retry   │  unico punto di rete
-                    │  errors.py — errori tipizzati│
-                    └───────────────┬──────────────┘
-                                    ▼
-                            viaggiaresicuri.it
-```
-
-| Modulo | Responsabilità |
+| File | Cosa contiene |
 |---|---|
-| `config.py` | endpoint e parametri di rete, sovrascrivibili da ambiente |
-| `client.py` | client httpx asincrono, retry con backoff, traduzione delle eccezioni |
-| `errors.py` | gerarchia degli errori: nessuna eccezione di libreria arriva al modello |
-| `countries.py` | risoluzione del Paese: ISO3/ISO2, nome, alias, fuzzy match, ambiguità |
-| `normalize.py` | HTML → testo, estrazione link, estrazione rimandi, stato del nodo |
-| `models.py` | contratti Pydantic: scheda paese, avvisi, envelope di risposta |
-| `sheet.py` | recupero e composizione della scheda, fallback, filtri per argomento |
-| `alerts.py` | recupero e ordinamento degli avvisi |
-| `server.py` | i tool MCP, come viste sottili sul contratto |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | componenti, percorso di una query, design dei tool, envelope `meta`, cache |
+| [DISCOVERY.md](DISCOVERY.md) | come sono stati trovati gli endpoint, le anomalie, cosa non esiste |
+| [DECISIONS.md](DECISIONS.md) | sette ADR brevi: perché le cose stanno così |
+| [PROACTIVE_AGENT.md](PROACTIVE_AGENT.md) | il design dell'agente autonomo, non implementato |
+| [docs/schede-paese.md](docs/schede-paese.md) | la mappa dei 28 nodi di una scheda paese |
+| `docs/piano-*.md` | i piani di lavoro, storici: raccontano come sono state prese le decisioni, ma i documenti qui sopra sono gli unici aggiornati |
 
-Il modulo di rete si chiama `client.py` e non `http.py` di proposito: i launcher che caricano il
-server indicando un file mettono la cartella del pacchetto in testa a `sys.path`, e un modulo
-chiamato `http` maschererebbe quello della standard library facendo fallire l'avvio. Per lo stesso
-motivo esiste `server.py` alla radice del progetto, che importa il pacchetto per nome.
+## Limiti noti e cosa farei con più tempo
 
-### Flusso dei dati
-
-1. Il client chiama un tool con il nome del Paese così come l'ha scritto l'operatore.
-2. `countries.py` risolve nome → ISO3, usando l'elenco ufficiale scaricato una volta e tenuto in
-   memoria. Se la richiesta è ambigua il server **non sceglie**: restituisce i candidati.
-3. `client.py` interroga l'endpoint della fonte, con retry sugli errori transitori.
-4. `models.py` valida il payload: i 28 nodi attesi sono campi obbligatori.
-5. `normalize.py` trasforma l'HTML in testo, estrae i link e i rimandi ad altre sezioni.
-6. `sheet.py` applica i fallback, filtra gli argomenti richiesti e compone la risposta.
-7. Il tool restituisce l'envelope: dati, data di aggiornamento, fonti, disclaimer.
-
-Ogni chiamata interroga la fonte dal vivo: nessuna cache dei contenuti, per non servire
-informazioni di sicurezza stantie. Tutto passa da `fetch_sheet()`, quindi una cache si può
-aggiungere in un punto solo senza toccare i tool.
-
-### Le fonti
-
-| Endpoint | Contenuto |
-|---|---|
-| `/schede_paese/lista_nazioni.json` | 222 Paesi con codici ISO |
-| `/schede_paese/{ISO3}.json` | scheda completa: 7 sezioni, 28 nodi |
-| `/ultima_ora/{ISO3}.json` | avvisi recenti del Paese |
-| `/schede_paese/pdf/{ISO3}.pdf` | export PDF della scheda |
-| `/schede_paese/pdf/{ISO3}_contactDetails.pdf` | export PDF dei soli contatti |
-
-Struttura, anomalie e misure sono documentate in [`docs/schede-paese.md`](docs/schede-paese.md).
-Il percorso di discovery e le alternative scartate sono in
-[`docs/piano-design.md`](docs/piano-design.md); il progetto di dettaglio di questa fase è in
-[`docs/piano-fase-a.md`](docs/piano-fase-a.md).
+1. **Rivalidazione condizionale.** La fonte espone `ETag` e `Last-Modified` su tutti gli endpoint
+   e risponde `304` a zero byte — verificato. Oggi non li uso: alla scadenza del TTL riscarico il
+   payload intero. Implementarli renderebbe la rivalidazione quasi gratuita, e con essa un TTL
+   molto più corto. È la prima cosa da fare.
+2. **TTL differenziati per tipo di contenuto.** Oggi ce n'è uno solo, sei ore, più una sola
+   eccezione dichiarata a 15 minuti sugli avvisi. Requisiti d'ingresso e mobilità potrebbero
+   averne uno molto più lungo, il primo piano molto più corto.
+3. **Misurare il retrieval invece di aneddotarlo.** Serve un set di query con il chunk atteso e
+   un recall@k, non due esempi. Il difetto noto suggerisce che un ibrido lessicale aiuterebbe,
+   ma senza misura è un'ipotesi.
+4. **Persistere gli `id` degli avvisi già visti.** È la primitiva che manca all'agente proattivo:
+   una tabella `(id, nazione, tsModifica, first_seen)` e il "cosa è cambiato" diventa una query.
+5. **Dieci domande scritte da qualcun altro.** È il modo più rapido per scoprire dove il sistema
+   si rompe davvero, e l'unico che non eredita i miei presupposti.
 
 ---
-
-## I tool
-
-| Tool | Cosa restituisce | Costo tipico |
-|---|---|---|
-| `find_country(query)` | ISO3 del Paese, o i candidati se ambiguo | trascurabile |
-| `get_entry_requirements(country, topics?)` | passaporto, visto, minori, dogana | ~580 tok |
-| `get_security_info(country, topics?)` | criminalità, terrorismo, rischi naturali, aree sconsigliate, **normative locali** | ~1.330 tok |
-| `get_health_info(country, topics?)` | strutture, malattie, avvertenze, vaccinazioni | ~620 tok |
-| `get_local_transport(country)` | guida, strade, trasporto pubblico | ~480 tok |
-| `get_embassy_contacts(country)` | ambasciata e consolati, emergenze h24, PDF contatti | ~340 tok |
-| `get_practical_info(country)` | dati Paese e numeri di emergenza locali | ~500 tok |
-| `get_recent_alerts(country)` | allerte e avvisi in corso, dal più recente | variabile |
-| `list_country_topics(country)` | indice dei 28 argomenti, senza testo | ~820 tok |
-| `get_country_topics(country, keys)` | solo gli argomenti scelti | quanto pesano |
-
-### Envelope di risposta
-
-Uguale per tutti i tool:
-
-```jsonc
-{
-  "country":    { "name": "Thailandia", "iso3": "THA", "iso2": "TH" },
-  "topic":      "Sicurezza",
-  "data":       [ /* argomenti o avvisi */ ],
-  "updated_at": "2026-09-03T22:00:00Z",
-  "sources":    { "page": "…/find-country/country/THA",
-                  "data": "…/schede_paese/THA.json",
-                  "pdf":  "…/schede_paese/pdf/THA.pdf" },
-  "notice":     "Informazioni di orientamento preliminare…"
-}
-```
-
-Ogni argomento porta con sé:
-
-| Campo | Significato |
-|---|---|
-| `id` | chiave della fonte (`Normative-locali-rilevanti`) |
-| `key` | chiave da usare nei filtri (`security.local_laws`) |
-| `text` | testo normalizzato |
-| `status` | `available` oppure `not_published` |
-| `provenance` | `detail` oppure `summary`, se il contenuto viene dalla scheda di sintesi |
-| `see_also` | sezioni a cui la fonte rimanda, per sapere quale tool chiamare dopo |
-| `links` | link estratti, con tipo `web` / `email` / `phone` |
-
-### Errori
-
-I tool sollevano `ToolError` con un codice in testa al messaggio: `country_not_found`,
-`ambiguous_country`, `unknown_topic`, `source_unavailable`, `not_found`, `unexpected_payload`.
-Nessuna eccezione di httpx o di Pydantic arriva al modello.
-
----
-
-## Scelte progettuali
-
-Le decisioni che seguono sono motivate da misure sull'intera popolazione dei 222 Paesi, non su
-campioni. Gli script che le producono sono in [`scripts/`](scripts/).
-
-**Il contratto ricalca la fonte, i tool ricalcano il bisogno.** I 28 nodi sono campi obbligatori
-del modello: se la fonte ne toglie uno la validazione fallisce, invece di restituire in silenzio
-una scheda a metà. I nodi nuovi non rompono nulla ma restano visibili. I tool invece sono viste,
-perché la tassonomia della fonte non è quella di chi fa una domanda: le regole su farmaci e alcol
-stanno sotto "Sicurezza", e nessun modello lo indovinerebbe dal nome del tool. Per questo le
-descrizioni elencano esplicitamente i contenuti di ogni sezione.
-
-**"Vuoto" non è "nessun rischio".** La fonte non omette mai un nodo: lo lascia vuoto.
-`Aree-di-particolare-cautela` è vuoto nel 37% dei Paesi, `Rischi-ambientali-e-naturali` nel 22%.
-Un campo vuoto viene esposto come `not_published`, mai come assenza di pericolo, e la regola è
-ripetuta nelle istruzioni del server perché arrivi anche al modello.
-
-**Fallback dichiarato.** Dove il dettaglio è vuoto si usa il riassunto della scheda di sintesi,
-marcato `provenance="summary"`. Copre 76 casi su 82. Nei 6 Paesi in cui anche la sintesi è solo
-un rimando a una sezione vuota — un vicolo cieco della fonte — la risposta resta "non pubblicato":
-meglio del silenzio travestito da rassicurazione.
-
-**Niente parsing dei PDF.** I PDF sono export della stessa scheda: misurata una sovrapposizione
-del 91–93% con il JSON, e copertura JSON 222/222. Vengono esposti come link — l'artefatto
-ufficiale che l'operatore inoltra al viaggiatore — non come fonte di dati.
-
-**Mai indovinare il Paese.** "Corea" corrisponde a due schede diverse: il server restituisce
-entrambe. Un solo candidato debole non è un'ambiguità ma un match che non regge, quindi non viene
-proposto: "Ibiza" somiglia a "Libia" all'80%, e suggerire la Libia a chi parte per le Baleari non
-è un errore neutro. Le località che l'operatore nomina al posto del Paese (Sharm, Phuket,
-Tenerife, Bali) sono risolte da una tabella di alias.
-
-**Nessun filtro silenzioso.** Un filtro su argomenti inesistenti solleva un errore che elenca i
-valori ammessi. Restituire una lista vuota sarebbe peggio: il modello la leggerebbe come "la fonte
-non pubblica nulla su questo tema".
-
-**Normalizzazione conservativa.** I link vengono estratti prima di rimuovere i tag, altrimenti i
-recapiti consolari — che vivono dentro `mailto:` — andrebbero persi. I rimandi interni alla scheda
-vengono estratti in `see_also`, ma solo quando la frase non contiene altro: se porta anche una
-risposta, resta. Il punto non è sempre fine frase, quindi numeri di telefono, importi, email e URL
-restano intatti: verificato su 5.781 nodi, zero alterazioni.
-
----
-
-## Test
-
-```bash
-.venv/bin/python -m pytest -m "not network and not llm"   # offline, ~1s
-.venv/bin/python -m pytest -m network                     # sulla fonte reale, ~2s
-.venv/bin/python -m pytest -m llm -s                      # eval dell'assistente, ~85s
-```
-
-I test offline girano su fixture salvate e non toccano la rete. Quelli marcati `network`
-scaricano e validano **tutte le 222 schede** e sorvegliano gli invarianti su cui poggia il
-design: nessuna sezione o nodo fuori contratto, il riassunto disponibile quando serve come
-fallback, nessun nodo `not_published` che conservi link, la quota di campi vuoti sotto una
-soglia. Non verificano il nostro codice: avvisano quando cambia la fonte.
-
-L'eval marcata `llm` fa dieci domande reali all'assistente e verifica **la traccia delle
-chiamate**, che è deterministica, più presenze e assenze precise nel testo: che il numero di
-emergenza consolare compaia esatto, che davanti a un campo vuoto non compaia mai "nessun
-rischio", che su "Corea" chieda quale dei due Paesi, che su una domanda fuori tema non chiami
-nessun tool. Tre casi sono quelli che avevano fatto emergere bug nel server: restano nella eval
-perché non rientrino da un'altra porta.
-
-## Script di esplorazione
-
-Indipendenti dal server e senza dipendenze esterne, servono a ispezionare le fonti a mano.
-
-```bash
-python scripts/lista_nazioni.py --search thai
-python scripts/scheda_paese.py Thailandia --section infoSicurezza --full
-python scripts/ultima_ora.py Perù
-python scripts/approfondimenti.py saluteinviaggio
-python scripts/report_campi_vuoti.py --csv report.csv    # censimento su tutti i Paesi
-```
-
-## Limiti noti
-
-- **Approfondimenti non esposti.** In diversi Paesi il nodo sui minori non contiene la norma ma
-  un rinvio all'approfondimento "Documenti di viaggio", che oggi il server non serve.
-- **Nessuna cache.** Ogni chiamata interroga la fonte: la latenza a freddo si paga a ogni Paese.
-- **Nessuno storico.** Il server risponde sul presente; il confronto fra due momenti servirà
-  all'agente proattivo, non a questo assistente.
-- **Aggiornamento disomogeneo.** Le schede vanno da gennaio 2025 a settembre 2026: la data è
-  sempre esposta, ma il server non può renderle più fresche di così.
 
 Le informazioni servite sono di orientamento preliminare, possono variare e non sostituiscono le
 indicazioni ufficiali applicabili al singolo caso.

@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
+
+# La cache è spenta per default nei test, e va accesa esplicitamente da chi la sta verificando
+# (tests/test_cache.py). Serve prima degli import del package, perché config.py legge l'ambiente
+# al caricamento. Senza, ogni suite lascerebbe entry su disco e un test scritto per il caso
+# "la fonte non risponde" verrebbe salvato da una copia lasciata lì dal test precedente.
+os.environ.setdefault("VS_CACHE_ENABLED", "false")
 
 from viaggiaresicuri_mcp.countries import CountryIndex
 from viaggiaresicuri_mcp.models import CountrySheet
@@ -28,8 +35,12 @@ def index(country_records: list[dict]) -> CountryIndex:
 
 @pytest.fixture(scope="session")
 def alerts_payloads() -> dict[str, dict]:
-    """THA ha 7 avvisi attivi, ALB nessuno: servono entrambi i casi."""
-    return {iso: load_fixture(f"ultima_ora_{iso}.json") for iso in ("THA", "ALB")}
+    """Quattro comportamenti diversi registrati dalla fonte reale:
+
+    ALB entrambi gli array vuoti, UKR e ISR un avviso di sicurezza a testa, THA sette avvisi su
+    due categorie. Sono i casi su cui poggiano i tre stati di `get_allerte`.
+    """
+    return {iso: load_fixture(f"ultima_ora_{iso}.json") for iso in ("THA", "ALB", "UKR", "ISR")}
 
 
 @pytest.fixture(scope="session")

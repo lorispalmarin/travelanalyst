@@ -1,7 +1,8 @@
 """Recupero e composizione della scheda paese.
 
-Tutto il server passa da `fetch_sheet`: un solo punto di rete e un solo punto di validazione.
-È qui che in fase B si appoggerà la cache, senza toccare i tool.
+Tutto il server passa da `fetch_sheet`: un solo punto di validazione della scheda. La rete e
+la cache stanno un livello sotto, in `client.fetch`, che restituisce il payload insieme alla sua
+provenienza; qui la provenienza viene attaccata alla scheda e da lì finisce nel `meta` dei tool.
 """
 
 from __future__ import annotations
@@ -12,8 +13,8 @@ from pydantic import ValidationError
 
 from .config import contacts_pdf_url, page_url, sheet_path, sheet_pdf_url, sheet_url
 from .errors import UnexpectedPayload, UnknownTopic
-from .client import fetch_json
-from .models import CountryRef, CountrySheet, Source, Topic, with_fallback
+from .client import fetch
+from .models import CountryRef, CountrySheet, Meta, Source, Topic, with_fallback
 
 SECTION_FIELDS = ("highlights", "general", "entry", "security", "health", "mobility", "changelog")
 
@@ -37,15 +38,21 @@ def contacts_source_for(iso3: str) -> Source:
 
 
 async def fetch_sheet(iso3: str, country: CountryRef | None = None) -> CountrySheet:
-    payload = await fetch_json(sheet_path(iso3))
+    scaricata = await fetch(sheet_path(iso3))
     try:
-        sheet = CountrySheet.model_validate(payload)
+        sheet = CountrySheet.model_validate(scaricata.payload)
     except ValidationError as exc:
         raise UnexpectedPayload(
             f"la scheda di {iso3} non ha la forma attesa: {exc.error_count()} campi non validi "
             f"(primo: {'.'.join(str(p) for p in exc.errors()[0]['loc'])})"
         ) from exc
     sheet.country = country
+    sheet.meta = Meta(
+        last_updated=sheet.updated_at,
+        retrieved_at=scaricata.retrieved_at,
+        cache_status=scaricata.cache_status,
+        age_seconds=scaricata.age_seconds,
+    )
     return sheet
 
 

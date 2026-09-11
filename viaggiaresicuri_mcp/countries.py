@@ -17,7 +17,7 @@ from rapidfuzz import fuzz, process
 
 from .config import countries_path
 from .errors import CountryNotFound, UnexpectedPayload
-from .client import fetch_json
+from .client import fetch
 from .models import CountryMatch, CountryRef
 
 # Alias -> ISO3. Coperti i casi dove il nome della fonte non contiene il nome comune,
@@ -133,14 +133,15 @@ _lock = asyncio.Lock()
 async def get_index() -> CountryIndex:
     """L'elenco paesi è una risorsa di bootstrap: si scarica una volta e resta in memoria.
 
-    Non è la cache dei contenuti rimandata alla fase B: sono 222 record che cambiano
-    raramente e servono a ogni singola chiamata per tradurre il nome in ISO3.
+    Il memo in processo non sostituisce la cache su disco: passa comunque da `client.fetch`,
+    così dopo un riavvio con la fonte giù i nomi dei Paesi si risolvono lo stesso. Sono 222
+    record che cambiano raramente e servono a ogni singola chiamata per tradurre il nome in ISO3.
     """
     global _index
     if _index is None:
         async with _lock:
             if _index is None:
-                payload = await fetch_json(countries_path())
+                payload = (await fetch(countries_path())).payload
                 if not isinstance(payload, list) or not payload:
                     raise UnexpectedPayload("lista_nazioni.json non è una lista popolata")
                 _index = CountryIndex(payload)

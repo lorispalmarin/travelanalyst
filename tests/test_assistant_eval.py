@@ -20,6 +20,17 @@ from assistant.agent import apri_assistente
 
 pytestmark = pytest.mark.llm
 
+
+@pytest.fixture(autouse=True)
+def cache_accesa(monkeypatch):
+    """La eval usa la cache, al contrario del resto della suite.
+
+    `conftest.py` spegne la cache per i test offline, e quella variabile viene ereditata dal
+    sottoprocesso MCP: senza questo, ogni rilancio della eval rigenererebbe una cinquantina di
+    richieste verso viaggiaresicuri.it. È esattamente il traffico che la cache esiste per evitare.
+    """
+    monkeypatch.setenv("VS_CACHE_ENABLED", "true")
+
 VIETATE = ("nessun rischio", "nessun pericolo", "tutto tranquillo", "non c'è alcun rischio")
 
 
@@ -31,7 +42,14 @@ class Caso:
     tool_vietati: set[str] = field(default_factory=set)
     deve_contenere: tuple[str, ...] = ()
     non_deve_contenere: tuple[str, ...] = ()
+    apre_con: tuple[str, ...] = ()          # almeno uno nei primi FINESTRA_APERTURA caratteri
+    prima_di: tuple[tuple[str, ...], tuple[str, ...]] | None = None
     richiede_fonte: bool = True
+
+
+# "In testa alla risposta" va misurato, non lasciato alla buona volontà: un'allerta di sicurezza
+# che compare in fondo, dopo mezza pagina di requisiti sul passaporto, non è stata riportata.
+FINESTRA_APERTURA = 400
 
 
 CASI = [
@@ -67,7 +85,23 @@ CASI = [
     Caso(
         nome="si può partire adesso",
         domanda="Si può partire per la Thailandia adesso? Ci sono allerte in corso?",
-        tool_attesi={"get_recent_alerts"},
+        tool_attesi={"get_allerte"},
+    ),
+    Caso(
+        # Il caso che motiva la regola: rispondere solo sui documenti sarebbe corretto e inutile.
+        # La fonte sconsiglia tutti i viaggi verso l'Ucraina, e chi chiama deve saperlo per primo.
+        nome="allerta prima del contenuto richiesto",
+        domanda="Che documenti servono per andare in Ucraina?",
+        tool_attesi={"get_allerte", "get_entry_requirements"},
+        apre_con=("sconsigl", "allerta", "avviso", "sicurezza"),
+        prima_di=(("sconsigl", "allerta", "avviso"), ("passaporto", "visto")),
+        non_deve_contenere=VIETATE,
+    ),
+    Caso(
+        nome="paese senza avvisi, senza rassicurazioni",
+        domanda="Ci sono allerte per l'Albania?",
+        tool_attesi={"get_allerte"},
+        non_deve_contenere=VIETATE + ("il paese è sicuro", "si può partire tranquill"),
     ),
     Caso(
         nome="paese ambiguo",
@@ -87,9 +121,12 @@ CASI = [
         tool_attesi={"get_entry_requirements"},
     ),
     Caso(
+        # L'altro lato della regola 7: una domanda puntuale che un avviso non sposterebbe non
+        # deve pagare una chiamata in più. È il caso che misura che il controllo sia una scelta.
         nome="guidare in Marocco",
         domanda="Posso guidare in Marocco con la patente italiana?",
         tool_attesi={"get_local_transport"},
+        tool_vietati={"get_allerte"},
     ),
 ]
 
@@ -114,6 +151,23 @@ def _valuta(caso: Caso, testo: str, tool_usati: list[str]) -> list[str]:
     for vietato in caso.non_deve_contenere:
         if vietato.lower() in minuscolo:
             problemi.append(f"contiene la formula vietata {vietato!r}")
+
+    if caso.apre_con:
+        testa = minuscolo[:FINESTRA_APERTURA]
+        if not any(t.lower() in testa for t in caso.apre_con):
+            problemi.append(
+                f"non apre con l'allerta: nessuno fra {caso.apre_con} nei primi "
+                f"{FINESTRA_APERTURA} caratteri"
+            )
+
+    if caso.prima_di:
+        primi, secondi = caso.prima_di
+        posizioni = [minuscolo.find(t.lower()) for t in primi if t.lower() in minuscolo]
+        dopo = [minuscolo.find(t.lower()) for t in secondi if t.lower() in minuscolo]
+        if not posizioni:
+            problemi.append(f"non menziona l'allerta: nessuno fra {primi}")
+        elif dopo and min(posizioni) > min(dopo):
+            problemi.append("l'allerta compare dopo il contenuto richiesto, non prima")
 
     if caso.richiede_fonte:
         if "viaggiaresicuri.it" not in minuscolo:
@@ -145,3 +199,22 @@ async def test_domande_dorate():
 
     falliti = [caso.nome for caso, problemi, _ in esiti if problemi]
     assert not falliti, f"{len(falliti)}/{len(CASI)} casi falliti: {falliti}"
+
+
+async def test_le_allerte_si_chiedono_una_volta_sola_per_paese():
+    """La regola dice "una volta per Paese": va verificata, o è solo una frase nel prompt.
+
+    Due turni sullo stesso Paese nella stessa conversazione. Il primo controlla le allerte, il
+    secondo deve riusare quel risultato invece di rifare la chiamata.
+    """
+    async with apri_assistente() as assistente:
+        assistente.nuova_conversazione()
+        primo = await assistente.chiedi("Che documenti servono per andare in Ucraina?")
+        secondo = await assistente.chiedi("E la situazione sanitaria com'è?")
+
+    print(f"\n  turno 1: {primo.tool_usati}\n  turno 2: {secondo.tool_usati}")
+    assert "get_allerte" in primo.tool_usati, "il primo turno deve controllare le allerte"
+    assert "get_allerte" not in secondo.tool_usati, (
+        "il secondo turno ha richiamato get_allerte: il risultato andava riusato"
+    )
+    assert "get_health_info" in secondo.tool_usati

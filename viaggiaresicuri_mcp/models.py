@@ -22,6 +22,7 @@ DISCLAIMER = (
 
 TopicStatus = Literal["available", "not_published"]
 Provenance = Literal["detail", "summary"]
+CacheStatus = Literal["fresh", "stale"]
 
 
 class Link(BaseModel):
@@ -171,10 +172,25 @@ class CountryMatch(BaseModel):
     confidence: Literal["exact", "alias", "fuzzy"] | None = None
 
 
+class Meta(BaseModel):
+    """Da dove viene questa risposta e quando. Mai una cache silenziosa.
+
+    `last_updated` ripete `ToolResponse.updated_at` di proposito: il blocco di freschezza deve
+    leggersi tutto insieme, senza che chi lo interpreta debba risalire di un livello per sapere
+    a quale data si riferisce la copia che sta leggendo.
+    """
+
+    last_updated: datetime | None = None   # dalla fonte: updateDate della scheda, o l'avviso più recente
+    retrieved_at: datetime                 # quando abbiamo scaricato davvero il payload
+    cache_status: CacheStatus              # "stale" = la fonte non risponde, questa è la copia locale
+    age_seconds: int                       # età della copia servita
+
+
 class CountrySheet(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     country: CountryRef | None = None
+    meta: Meta | None = None
     updated_at: datetime = Field(alias="updateDate")
 
     changelog: Section[ChangelogNodes] = Field(alias="infoCronologiaAggiornamenti")
@@ -258,6 +274,30 @@ class Alert(BaseModel):
         return normalized
 
 
+StatoAvvisi = Literal["avvisi_presenti", "nessun_avviso_pubblicato", "non_verificabile"]
+
+
+class Avvisi(BaseModel):
+    """Gli avvisi di un Paese e — soprattutto — quanto ci si può fidare del fatto che siano tutti.
+
+    I tre stati non sono un dettaglio di implementazione: sono la cosa che questo tool esiste per
+    comunicare. Un array vuoto e una fonte irraggiungibile portano allo stesso `[]`, ma dicono
+    cose opposte, e appiattirli su "nessun avviso" è il modo in cui un sistema del genere fa il
+    danno peggiore che può fare.
+
+    - `avvisi_presenti`: la fonte è stata consultata e pubblica avvisi.
+    - `nessun_avviso_pubblicato`: la fonte è stata consultata e non ne pubblica. Vuol dire che la
+      Farnesina non ha pubblicato avvisi, **non** che il Paese sia sicuro.
+    - `non_verificabile`: la fonte non risponde e questa è una copia locale. Dall'assenza di
+      avvisi in uno snapshot vecchio non segue l'assenza di un'emergenza adesso.
+    """
+
+    stato: StatoAvvisi
+    messaggio: str              # la frase da riportare all'operatore, già scritta: non parafrasarla
+    ultima_ora: list[Alert] = Field(default_factory=list)
+    focus: list[Alert] = Field(default_factory=list)
+
+
 class TopicRef(BaseModel):
     """Voce dell'indice degli argomenti: abbastanza per scegliere, troppo poco per rispondere."""
 
@@ -273,15 +313,22 @@ class Source(BaseModel):
     pdf: str | None = None
 
 
+
 T = TypeVar("T")
 
 
 class ToolResponse(BaseModel, Generic[T]):
-    """Envelope comune a tutti i tool. Le allerte della fase B useranno lo stesso guscio."""
+    """Envelope comune a tutti i tool.
 
-    country: CountryRef
+    `country` è assente solo per la ricerca sugli approfondimenti, che sono documenti generali e
+    non riferiti a un Paese: è la differenza che il modello deve vedere anche dalla forma della
+    risposta, non solo dal nome del tool.
+    """
+
+    country: CountryRef | None = None
     topic: str
     data: T
     updated_at: datetime | None = None
     sources: Source
+    meta: Meta | None = None
     notice: str = DISCLAIMER

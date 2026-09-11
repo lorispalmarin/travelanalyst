@@ -21,6 +21,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 
 from .config import Settings, carica
+from .freshness import avviso as testo_avviso, estrai as estrai_freschezza
 from .mcp_tools import tool_del_server
 from .prompts import SYSTEM_PROMPT
 
@@ -78,8 +79,15 @@ class Assistente:
         stato = await self._agent.ainvoke(
             {"messages": [HumanMessage(content=domanda)]}, config=self._thread
         )
-        messaggi: list[BaseMessage] = stato["messages"]
-        return Risposta(testo=_ultimo_testo(messaggi), tool_usati=_tool_chiamati(messaggi))
+        # `ainvoke` con un checkpointer restituisce tutta la conversazione, non il solo turno:
+        # senza tagliare, `tool_usati` elencherebbe anche i tool dei turni precedenti e l'avviso
+        # di copia locale riapparirebbe per sempre dopo il primo risultato stale.
+        messaggi: list[BaseMessage] = _ultimo_turno(stato["messages"])
+        testo = _ultimo_testo(messaggi)
+        avvertenza = _avviso_di_copia_locale(messaggi)
+        if avvertenza:
+            testo = f"{avvertenza}\n\n{testo}" if testo else avvertenza
+        return Risposta(testo=testo, tool_usati=_tool_chiamati(messaggi))
 
     async def traccia(self, domanda: str) -> AsyncIterator[dict[str, Any]]:
         """Emette gli eventi dell'agente man mano che accadono.
@@ -89,6 +97,7 @@ class Assistente:
         per token. Sono due flussi con tempi diversi: la UI li tiene in due pannelli distinti
         proprio per questo.
         """
+        avvisato = False
         async for modalita, pezzo in self._agent.astream(
             {"messages": [HumanMessage(content=domanda)]},
             config=self._thread,
@@ -114,6 +123,13 @@ class Assistente:
                                 "errore": contenuto.startswith("ERRORE DEL TOOL"),
                                 "anteprima": contenuto[:2000],
                             }
+                            # I risultati dei tool arrivano prima del testo: è il momento giusto
+                            # per dire che la fonte è giù, e una volta sola per turno.
+                            if not avvisato:
+                                freschezza = estrai_freschezza(contenuto)
+                                if freschezza is not None:
+                                    avvisato = True
+                                    yield {"tipo": "avviso", "testo": testo_avviso(freschezza)}
             elif modalita == "messages":
                 messaggio = pezzo[0] if isinstance(pezzo, tuple) else pezzo
                 testo = _testo_di(messaggio)
@@ -122,10 +138,12 @@ class Assistente:
         yield {"tipo": "fine"}
 
     async def eventi(self, domanda: str) -> AsyncIterator[tuple[str, str]]:
-        """Versione semplificata per la CLI: ("tool", nome) e ("testo", pezzo)."""
+        """Versione semplificata per la CLI: ("tool", nome), ("avviso", testo), ("testo", pezzo)."""
         async for evento in self.traccia(domanda):
             if evento["tipo"] == "tool_call":
                 yield "tool", evento["nome"]
+            elif evento["tipo"] == "avviso":
+                yield "avviso", evento["testo"]
             elif evento["tipo"] == "testo":
                 yield "testo", evento["delta"]
 
@@ -157,6 +175,26 @@ def _ragionamenti(messaggio: BaseMessage) -> list[str]:
             if testo and testo.strip():
                 testi.append(testo.strip())
     return testi
+
+
+def _ultimo_turno(messaggi: Sequence[BaseMessage]) -> list[BaseMessage]:
+    """I messaggi dall'ultima domanda dell'utente in poi."""
+    for indice in range(len(messaggi) - 1, -1, -1):
+        if isinstance(messaggi[indice], HumanMessage):
+            return list(messaggi[indice:])
+    return list(messaggi)
+
+
+def _avviso_di_copia_locale(messaggi: Sequence[BaseMessage]) -> str | None:
+    """L'avviso da anteporre se anche un solo tool ha risposto da una copia locale."""
+    for messaggio in messaggi:
+        if not isinstance(messaggio, ToolMessage):
+            continue
+        contenuto = messaggio.content if isinstance(messaggio.content, str) else str(messaggio.content)
+        freschezza = estrai_freschezza(contenuto)
+        if freschezza is not None:
+            return testo_avviso(freschezza)
+    return None
 
 
 def _ultimo_testo(messaggi: Sequence[BaseMessage]) -> str:

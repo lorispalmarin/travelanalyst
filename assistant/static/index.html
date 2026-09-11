@@ -142,6 +142,9 @@
     cursor: pointer; padding: 3px 7px; border-radius: 7px;
   }
   .azioni button:hover { background: var(--sfondo-tenue); color: var(--testo); }
+  .fonte-giu { font-size: 14px; line-height: 1.55; border: 1px solid #d9a406;
+    background: rgba(217, 164, 6, .09); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+  .fonte-giu p { margin: 0; }
   .avviso { color: var(--errore); font-size: 14px; border: 1px solid var(--errore);
             border-radius: 11px; padding: 9px 13px; }
 
@@ -264,6 +267,7 @@ function turnoAssistente() {
           <div class="pensiero-testa"><span class="freccia">▶</span><span class="stato scintilla">Sto ragionando…</span></div>
           <div class="pensiero-corpo"></div>
         </div>
+        <div class="fonte-giu" hidden></div>
         <div class="testo"><span class="cursore"></span></div>
         <div class="azioni" hidden><button class="copia">Copia</button></div>
       </div>
@@ -280,6 +284,7 @@ function turnoAssistente() {
     stato: d.querySelector(".stato"),
     corpo: d.querySelector(".pensiero-corpo"),
     testo: d.querySelector(".testo"),
+    fonteGiu: d.querySelector(".fonte-giu"),
     azioni: d.querySelector(".azioni"),
     attesa: new Map(),
     passi: 0,
@@ -362,7 +367,12 @@ function concludi(t) {
   }
 }
 
-function avviso(t, messaggio) {
+function fonteNonRaggiungibile(t, testo) {
+  t.fonteGiu.innerHTML = markdown(testo);
+  t.fonteGiu.hidden = false;
+}
+
+function mostraErrore(t, messaggio) {
   const d = document.createElement("div");
   d.className = "avviso";
   d.textContent = messaggio;
@@ -391,17 +401,18 @@ function chiedi(domanda) {
     if (ev.tipo === "ragionamento") passoRagionamento(t, ev.testo);
     else if (ev.tipo === "tool_call") passoStrumento(t, ev.nome, ev.argomenti);
     else if (ev.tipo === "tool_result") chiudiStrumento(t, ev.nome, ev.caratteri, ev.anteprima, ev.errore);
+    else if (ev.tipo === "avviso") fonteNonRaggiungibile(t, ev.testo);
     else if (ev.tipo === "testo") {
       t.accumulato += ev.delta;
       t.stato.classList.remove("scintilla");
       if (t.passi) t.stato.textContent = `Ragionamento e ${t.passi} passi`;
       t.testo.innerHTML = markdown(t.accumulato) + '<span class="cursore"></span>';
       scendi();
-    } else if (ev.tipo === "errore") { avviso(t, ev.messaggio); concludi(t); termina(); }
+    } else if (ev.tipo === "errore") { mostraErrore(t, ev.messaggio); concludi(t); termina(); }
     else if (ev.tipo === "fine") { concludi(t); termina(); scendi(); }
   };
   sorgente.onerror = () => {
-    if (inCorso) { avviso(t, "Connessione interrotta."); concludi(t); termina(); }
+    if (inCorso) { mostraErrore(t, "Connessione interrotta."); concludi(t); termina(); }
   };
 }
 

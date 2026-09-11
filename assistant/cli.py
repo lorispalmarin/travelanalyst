@@ -48,6 +48,9 @@ async def _rispondi(assistente: Assistente, domanda: str) -> None:
         async for tipo, pezzo in assistente.eventi(domanda):
             if tipo == "tool":
                 print(f"{GRIGIO}  → {pezzo}{RESET}", file=sys.stderr, flush=True)
+            elif tipo == "avviso":
+                # arriva prima del testo per costruzione: vedi assistant/freshness.py
+                print(f"\n{GIALLO}{pezzo}{RESET}")
             elif tipo == "testo" and pezzo:
                 if not in_testo:
                     print()

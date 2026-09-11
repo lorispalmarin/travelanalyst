@@ -13,6 +13,7 @@ garanzia che l'assistente non possa usare nient'altro, che è il vincolo dello s
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -60,12 +61,36 @@ def _costruisci_tool(client: Client, spec: Any) -> StructuredTool:
     )
 
 
+def _ambiente() -> dict[str, str]:
+    """L'ambiente del sottoprocesso MCP.
+
+    Va passato esplicitamente: senza, il trasporto stdio avvia il server con un ambiente minimo
+    di default, e tutta la configurazione della fonte (`VS_BASE_URL`, `VS_CACHE_*`,
+    `VS_TIMEOUT_SECONDS`) non arriva mai a destinazione — silenziosamente, perché ogni variabile
+    ha un default che funziona.
+
+    Le credenziali del modello di chat restano fuori. Il confine non è sparito con l'arrivo della
+    ricerca semantica: il server ha bisogno di vettorizzare le domande, quindi riceve una chiave
+    di *embedding* — se non è configurata a parte, la stessa chiave sotto il nome `EMBEDDING_*`.
+    Quello che continua a non avere è la chiave con cui si parla a un modello di chat: il server
+    resta un server di dati, e non poterlo fare è meglio che limitarsi a non farlo.
+    """
+    ambiente = {k: v for k, v in os.environ.items() if not k.startswith("OPENAI_")}
+    for specifica, ripiego in (("EMBEDDING_API_KEY", "OPENAI_API_KEY"),
+                               ("EMBEDDING_BASE_URL", "OPENAI_BASE_URL")):
+        valore = os.getenv(specifica) or os.getenv(ripiego)
+        if valore:
+            ambiente[specifica] = valore
+    return ambiente
+
+
 @asynccontextmanager
 async def tool_del_server(settings: Settings) -> AsyncIterator[list[StructuredTool]]:
     """Avvia il server MCP come processo separato e ne espone i tool a LangChain."""
     transport = PythonStdioTransport(
         script_path=settings.server_script,
         python_cmd=settings.python_executable,
+        env=_ambiente(),
     )
     async with Client(transport) as client:
         specifiche = await client.list_tools()
