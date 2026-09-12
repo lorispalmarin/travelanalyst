@@ -14,7 +14,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-SERVER_SCRIPT = ROOT / "server.py"
+
+# Il server MCP si avvia come modulo, non come file. Un percorso costruito da `__file__`
+# funzionerebbe solo con un'installazione editabile: dentro un container il pacchetto sta in
+# site-packages e `server.py` — che esiste per i launcher esterni — non è più accanto ad esso.
+SERVER_MODULE = "viaggiaresicuri_mcp.server"
 
 load_dotenv(ROOT / ".env")
 
@@ -32,7 +36,7 @@ class Settings:
     reasoning_effort: str | None
     reasoning_summary: str | None
     python_executable: str
-    server_script: Path
+    server_module: str
     max_steps: int
 
     @property
@@ -64,6 +68,6 @@ def carica() -> Settings:
         # grezzo arriva cifrato, il sommario no
         reasoning_summary=os.getenv("OPENAI_REASONING_SUMMARY", "auto") or None,
         python_executable=os.getenv("MCP_PYTHON", sys.executable),
-        server_script=Path(os.getenv("MCP_SERVER_SCRIPT", str(SERVER_SCRIPT))),
+        server_module=os.getenv("MCP_SERVER_MODULE", SERVER_MODULE),
         max_steps=int(os.getenv("ASSISTANT_MAX_STEPS", "12")),
     )

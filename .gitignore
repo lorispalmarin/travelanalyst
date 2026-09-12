@@ -7,3 +7,6 @@ __pycache__/
 *.csv
 .env
 var/
+*.egg-info/
+build/
+dist/

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """GET /schede_paese/{ISO3}.json — struttura e contenuto della scheda di un paese.
 
-    python scripts/scheda_paese.py Albania
-    python scripts/scheda_paese.py THA --section infoSicurezza --full
-    python scripts/scheda_paese.py BRA --node Ambasciate-e-Consolati --links
+    python scripts/discovery/scheda_paese.py Albania
+    python scripts/discovery/scheda_paese.py THA --section infoSicurezza --full
+    python scripts/discovery/scheda_paese.py BRA --node Ambasciate-e-Consolati --links
 """
 
 from __future__ import annotations

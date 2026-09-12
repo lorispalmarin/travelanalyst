@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -107,10 +108,21 @@ async def chiedi(domanda: str, request: Request) -> StreamingResponse:
 
 
 def main() -> None:
+    """Avvia il server.
+
+    Il default resta `127.0.0.1`, così un'esecuzione locale non si espone alla rete per
+    distrazione. In un container serve invece `0.0.0.0`, altrimenti la porta pubblicata non
+    raggiunge niente: è il Dockerfile a impostare `WEB_HOST`, non questo default.
+    """
     import uvicorn
 
     logging.basicConfig(level=logging.INFO)
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+    uvicorn.run(
+        app,
+        host=os.getenv("WEB_HOST", "127.0.0.1"),
+        port=int(os.getenv("WEB_PORT", "8000")),
+        log_level="warning",
+    )
 
 
 if __name__ == "__main__":

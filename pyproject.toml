@@ -21,6 +21,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "network: richiede la fonte reale (escludi con -m 'not network')",
+    "llm: chiama il modello e consuma credito (escludi con -m 'not llm')",
+]
+
 [project.scripts]
 viaggiaresicuri-mcp = "viaggiaresicuri_mcp.server:main"
 travelanalyst = "assistant.cli:main"
@@ -32,3 +40,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["viaggiaresicuri_mcp", "assistant"]
+
+# Senza questo un'installazione non editabile porta solo i .py: la pagina della UI e l'indice
+# semantico sparirebbero, e il guasto si vedrebbe solo in container.
+[tool.setuptools.package-data]
+assistant = ["static/*"]
+viaggiaresicuri_mcp = ["data/*"]

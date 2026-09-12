@@ -1,0 +1,23 @@
+.git
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+build
+dist
+.pytest_cache
+.DS_Store
+
+# La chiave non entra nell'immagine: si passa a runtime con --env-file .env
+.env
+
+# Cache locale: nel container sta su un volume, e copiarla dentro l'immagine la renderebbe
+# parte di un artefatto distribuibile.
+var
+
+# Servono a sviluppare e documentare, non a eseguire.
+tests
+docs
+scripts/discovery
+README.md

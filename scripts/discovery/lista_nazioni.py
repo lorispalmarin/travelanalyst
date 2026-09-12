@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """GET /schede_paese/lista_nazioni.json — elenco completo delle nazioni disponibili.
 
-    python scripts/lista_nazioni.py
-    python scripts/lista_nazioni.py --search thai
-    python scripts/lista_nazioni.py --json
+    python scripts/discovery/lista_nazioni.py
+    python scripts/discovery/lista_nazioni.py --search thai
+    python scripts/discovery/lista_nazioni.py --json
 """
 
 from __future__ import annotations

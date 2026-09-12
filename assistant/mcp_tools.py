@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastmcp import Client
-from fastmcp.client.transports import PythonStdioTransport
+from fastmcp.client.transports import StdioTransport
 from langchain_core.tools import StructuredTool
 
 from .config import Settings
@@ -87,9 +87,9 @@ def _ambiente() -> dict[str, str]:
 @asynccontextmanager
 async def tool_del_server(settings: Settings) -> AsyncIterator[list[StructuredTool]]:
     """Avvia il server MCP come processo separato e ne espone i tool a LangChain."""
-    transport = PythonStdioTransport(
-        script_path=settings.server_script,
-        python_cmd=settings.python_executable,
+    transport = StdioTransport(
+        command=settings.python_executable,
+        args=["-m", settings.server_module],
         env=_ambiente(),
     )
     async with Client(transport) as client:

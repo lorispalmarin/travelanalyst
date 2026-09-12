@@ -120,7 +120,7 @@ class TestTracciaEventi:
         settings = Settings(
             api_key="x", model="m", base_url=None, use_responses_api=True,
             reasoning_effort=None, reasoning_summary="auto", python_executable="python",
-            server_script=__import__("pathlib").Path("server.py"), max_steps=4,
+            server_module="viaggiaresicuri_mcp.server", max_steps=4,
         )
         return Assistente(_AgenteFinto(eventi, messaggi), [], settings)
 

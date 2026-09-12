@@ -32,12 +32,44 @@ L'elenco completo è in [.env.example](.env.example), con il significato di cias
 .venv/bin/travelanalyst              # assistente da riga di comando
 .venv/bin/travelanalyst-web          # stessa cosa via browser, http://127.0.0.1:8000
 .venv/bin/python server.py           # solo il server MCP, su stdio
-make test                            # 212 test offline, nessuna rete
+make test                            # 219 test offline, nessuna rete
 make test-all                        # aggiunge 8 test sulla fonte reale e 2 sul modello
 ```
 
-L'indice della ricerca semantica è committato in `data/`, quindi il server parte già completo di
-tutti e 11 i tool: `make ingest` serve solo a ricostruirlo, e richiede una chiave di embedding.
+L'indice della ricerca semantica è committato in `viaggiaresicuri_mcp/data/`, quindi il server
+parte già completo di tutti e 11 i tool: `make ingest` serve solo a ricostruirlo, e richiede una
+chiave di embedding.
+
+### Con Docker
+
+```bash
+make docker                                    # costruisce travelanalyst:dev
+make docker-run                                # assistente web su http://127.0.0.1:8000
+docker run -i --rm --env-file .env travelanalyst:dev python server.py   # solo MCP, su stdio
+```
+
+Una sola immagine per i due modi di eseguire il progetto. La chiave non viene mai copiata dentro
+l'immagine: si passa a runtime con `--env-file`. `make docker-run` monta un volume per la cache
+dei payload, perché altrimenti ogni avvio ripartirebbe a cache vuota e riscaricherebbe dalla
+fonte quello che aveva già.
+
+### Struttura
+
+```
+README.md              questo file
+Dockerfile             immagine unica: UI web (default) o server MCP su stdio
+Makefile               test, ingest, docker
+pyproject.toml         dipendenze, console script e configurazione di pytest
+server.py              shim per i launcher MCP esterni (Claude Desktop, mcp.json)
+viaggiaresicuri_mcp/   il server: tool, contratto, normalizzazione, client, cache
+    data/              l'indice semantico committato, asset del pacchetto
+assistant/             l'agente LangChain: CLI, UI web, system prompt
+tests/                 219 test offline, 8 sulla fonte reale, 2 sul modello
+scripts/               ingest dell'indice
+    discovery/         gli script con cui sono state esplorate le fonti
+docs/                  architettura, discovery, decisioni, agente proattivo
+    storico/           i piani di lavoro, non più aggiornati
+```
 
 ## Una sessione vera
 
@@ -108,13 +140,13 @@ in corso cambiava l'inquadramento della risposta.
 - **L'indice semantico è uno snapshot**, ricostruito a mano con `make ingest`.
 - **La qualità delle risposte non è valutata**: la eval verifica quali tool vengono chiamati e la
   presenza o assenza di stringhe precise, non se la risposta è scritta bene.
-- **L'agente proattivo è solo progettato**, non implementato: vedi [PROACTIVE_AGENT.md](PROACTIVE_AGENT.md).
+- **L'agente proattivo è solo progettato**, non implementato: vedi [PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md).
 
 ## I test
 
 | Suite | Comando | Copre | Esito |
 |---|---|---|---|
-| offline | `make test` | 212 test su contratto, normalizzazione, cache, tool, prompt | verdi |
+| offline | `make test` | 219 test su contratto, normalizzazione, cache, tool, prompt, packaging | verdi |
 | fonte reale | `pytest -m network` | 8 test: tutte le 222 schede validate, invarianti sui campi vuoti | verdi |
 | eval del modello | `pytest -m llm -s` | 12 casi sull'assistente vero + riuso su due turni | 12/12 |
 
@@ -131,12 +163,12 @@ regressione, non una misura indipendente della qualità.
 
 | File | Cosa contiene |
 |---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | componenti, percorso di una query, design dei tool, envelope `meta`, cache |
-| [DISCOVERY.md](DISCOVERY.md) | come sono stati trovati gli endpoint, le anomalie, cosa non esiste |
-| [DECISIONS.md](DECISIONS.md) | sette ADR brevi: perché le cose stanno così |
-| [PROACTIVE_AGENT.md](PROACTIVE_AGENT.md) | il design dell'agente autonomo, non implementato |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | componenti, percorso di una query, design dei tool, envelope `meta`, cache |
+| [DISCOVERY.md](docs/DISCOVERY.md) | come sono stati trovati gli endpoint, le anomalie, cosa non esiste |
+| [DECISIONS.md](docs/DECISIONS.md) | sette ADR brevi: perché le cose stanno così |
+| [PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md) | il design dell'agente autonomo, non implementato |
 | [docs/schede-paese.md](docs/schede-paese.md) | la mappa dei 28 nodi di una scheda paese |
-| `docs/piano-*.md` | i piani di lavoro, storici: raccontano come sono state prese le decisioni, ma i documenti qui sopra sono gli unici aggiornati |
+| [docs/storico/](docs/storico/) | i piani di lavoro, storici: raccontano come sono state prese le decisioni, ma i documenti qui sopra sono gli unici aggiornati |
 
 ## Limiti noti e cosa farei con più tempo
 

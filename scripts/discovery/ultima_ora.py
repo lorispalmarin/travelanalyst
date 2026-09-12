@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """GET /ultima_ora/{ISO3}.json e /ultima_ora/totale.json — allerte e avvisi.
 
-    python scripts/ultima_ora.py Thailandia
-    python scripts/ultima_ora.py --totale
-    python scripts/ultima_ora.py PER --full
+    python scripts/discovery/ultima_ora.py Thailandia
+    python scripts/discovery/ultima_ora.py --totale
+    python scripts/discovery/ultima_ora.py PER --full
 """
 
 from __future__ import annotations

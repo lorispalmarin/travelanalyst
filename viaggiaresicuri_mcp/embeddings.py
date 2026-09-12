@@ -15,13 +15,13 @@ import logging
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import Path
 
 from dotenv import load_dotenv
 
+from .config import ROOT
+
 logger = logging.getLogger(__name__)
 
-ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
 # L'API accetta un array di input: 64 chunk per chiamata bastano a fare l'intero indice in due

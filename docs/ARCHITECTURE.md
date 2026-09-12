@@ -28,13 +28,21 @@ flowchart TB
 
     CL --> CA[(cache.py<br/>SQLite<br/>payload grezzi)]
     CL --> FONTE[/viaggiaresicuri.it/]
-    AP --> IDX[(data/*.npz + *.json<br/>124 chunk, committati)]
+    AP --> IDX[(data/ nel pacchetto<br/>124 chunk, committati)]
     EM --> OAI[/text-embedding-3-large/]
 ```
 
 L'assistente avvia il server come sottoprocesso su stdio. Non lo importa: parla lo stesso
 protocollo che parlerebbe Claude Desktop, quindi quello che funziona in CLI funziona in qualunque
 client MCP.
+
+Lo avvia come **modulo** (`python -m viaggiaresicuri_mcp.server`), non come file. È una
+distinzione che sembra pedante e non lo è: un percorso ricavato da `__file__` funziona solo con
+un'installazione editabile, dove il pacchetto sta accanto alla radice del progetto. Installato
+normalmente — in un container, per esempio — il pacchetto è in `site-packages` e quel percorso
+non esiste più. Per la stessa ragione l'indice semantico vive in `viaggiaresicuri_mcp/data/` ed è
+dichiarato come package data: è un asset del pacchetto, non un file della cartella di lavoro.
+`server.py` in radice resta, ma solo per i launcher esterni che vogliono un file da indicare.
 
 ## Il percorso di una query
 
@@ -127,7 +135,7 @@ degli avvisi, perché una distinzione di sicurezza non può dipendere da come il
 riformula.
 
 `cache_status` e `age_seconds` chiudono il cerchio: quando la fonte non risponde e si serve una
-copia locale, l'assistente antepone un avviso esplicito alla risposta ([freshness.py](assistant/freshness.py)),
+copia locale, l'assistente antepone un avviso esplicito alla risposta ([freshness.py](../assistant/freshness.py)),
 e la UI web lo rende come un blocco giallo sopra il testo. Mai una cache silenziosa.
 
 ## Le due modalità di retrieval
@@ -156,7 +164,7 @@ più non avrebbe comprato niente.
 
 ## Client HTTP e cache
 
-Tutta la rete passa da [client.py](viaggiaresicuri_mcp/client.py): timeout espliciti, tre
+Tutta la rete passa da [client.py](../viaggiaresicuri_mcp/client.py): timeout espliciti, tre
 tentativi con backoff esponenziale, un tetto alle connessioni verso la stessa origine, e le
 eccezioni di httpx tradotte in `SourceUnavailable`, `SourceNotFound`, `UnexpectedPayload` — così
 nessun tool conosce la libreria di trasporto.

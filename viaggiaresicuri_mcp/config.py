@@ -9,6 +9,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# `var/` con la cache sta accanto al pacchetto, in radice di progetto.
+ROOT = Path(__file__).resolve().parent.parent
+# L'indice semantico invece è un asset *del pacchetto*, risolto rispetto al modulo e non alla
+# radice: così funziona anche installato in site-packages, dove una radice di progetto non c'è.
+DATA = Path(__file__).resolve().parent / "data"
+
 BASE_URL = os.getenv("VS_BASE_URL", "https://www.viaggiaresicuri.it").rstrip("/")
 USER_AGENT = os.getenv(
     "VS_USER_AGENT", "travelanalyst-mcp/0.1 (assistente interno; contatto: customercare)"
@@ -29,9 +35,7 @@ CACHE_TTL_SECONDS = int(os.getenv("VS_CACHE_TTL_SECONDS", "21600"))
 # aggiornamento (le allerte si muovono a settimane) ma l'asimmetria del costo d'errore.
 ALERTS_TTL_SECONDS = int(os.getenv("VS_ALERTS_TTL_SECONDS", "900"))
 
-CACHE_PATH = Path(
-    os.getenv("VS_CACHE_PATH", str(Path(__file__).resolve().parent.parent / "var" / "cache.sqlite3"))
-)
+CACHE_PATH = Path(os.getenv("VS_CACHE_PATH", str(ROOT / "var" / "cache.sqlite3")))
 
 
 def countries_path() -> str:

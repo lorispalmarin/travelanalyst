@@ -24,7 +24,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .config import BASE_URL
+from .config import BASE_URL, DATA
 from .errors import UnexpectedPayload
 from .models import Meta
 from .normalize import extract_links
@@ -46,8 +46,8 @@ MAX_CARATTERI = 2000
 # risultati possibili: somiglia moltissimo alla domanda e non contiene la risposta.
 MIN_CARATTERI = 300
 
-INDICE = Path(__file__).resolve().parent.parent / "data" / "approfondimenti.json"
-VETTORI = Path(__file__).resolve().parent.parent / "data" / "approfondimenti.npz"
+INDICE = DATA / "approfondimenti.json"
+VETTORI = DATA / "approfondimenti.npz"
 
 
 def documento_path(nome: str) -> str:

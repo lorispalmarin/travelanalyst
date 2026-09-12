@@ -32,7 +32,7 @@ per le guide non legate a un Paese, e i due export PDF.
 Dentro una scheda: 7 sezioni (`infoCronologiaAggiornamenti`, `infoPrimopiano`, `infoGenerali`,
 `infoRequisitiIngresso`, `infoSicurezza`, `infoSituazioneSanitaria`, `infoMobilita`) e 28 nodi
 foglia, presenti in tutti i Paesi campionati. L'elenco completo è in
-[docs/schede-paese.md](docs/schede-paese.md).
+[schede-paese.md](schede-paese.md).
 
 ## La documentazione ufficiale esiste, ed è in parte sbagliata
 

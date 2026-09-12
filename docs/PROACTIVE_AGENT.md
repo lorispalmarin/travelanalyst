@@ -157,9 +157,9 @@ campo per registrarli a mano.
 
 ## Cosa riusa del sistema già costruito
 
-- **[client.py](viaggiaresicuri_mcp/client.py)**: timeout, retry con backoff, lock per URL,
+- **[client.py](../viaggiaresicuri_mcp/client.py)**: timeout, retry con backoff, lock per URL,
   traduzione degli errori. Il poller non aggiunge una riga di rete.
-- **[cache.py](viaggiaresicuri_mcp/cache.py)**: lo stesso store SQLite ospita la tabella degli
+- **[cache.py](../viaggiaresicuri_mcp/cache.py)**: lo stesso store SQLite ospita la tabella degli
   avvisi visti e l'outbox, e la semantica stale-if-error vale anche qui — una fonte giù non deve
   produrre né allarmi né silenzio non dichiarato.
 - **`get_allerte` e i tool sulla scheda**: il contenuto della notifica si compone con gli stessi

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """GET /approfondimenti/{nome}.json — guide generali, non legate a un singolo paese.
 
-    python scripts/approfondimenti.py                 # panoramica di tutti i file
-    python scripts/approfondimenti.py saluteinviaggio
-    python scripts/approfondimenti.py avvertenze --full
+    python scripts/discovery/approfondimenti.py                 # panoramica di tutti i file
+    python scripts/discovery/approfondimenti.py saluteinviaggio
+    python scripts/discovery/approfondimenti.py avvertenze --full
 """
 
 from __future__ import annotations

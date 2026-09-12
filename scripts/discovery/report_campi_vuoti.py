@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Scarica tutte le schede paese e produce un resoconto su campi vuoti e anomalie.
 
-    python scripts/report_campi_vuoti.py
-    python scripts/report_campi_vuoti.py --limit 30 --workers 8
-    python scripts/report_campi_vuoti.py --csv report.csv
+    python scripts/discovery/report_campi_vuoti.py
+    python scripts/discovery/report_campi_vuoti.py --limit 30 --workers 8
+    python scripts/discovery/report_campi_vuoti.py --csv report.csv
 """
 
 from __future__ import annotations
