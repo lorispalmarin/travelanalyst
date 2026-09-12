@@ -30,9 +30,15 @@ def fonte(monkeypatch, thailandia, albania):
             return albania
         return {"ultima_ora": [], "focus": []}
 
-    async def scarica(path: str):
+    async def scarica(path: str, condizionali=None):
         payload = risolvi(path)
-        return json.dumps(payload, ensure_ascii=False), payload
+        return Risposta(
+            modificato=True,
+            body=json.dumps(payload, ensure_ascii=False),
+            payload=payload,
+            etag=f'"{path}"',
+            last_modified=None,
+        )
 
     monkeypatch.setattr("viaggiaresicuri_mcp.client._scarica", scarica)
 
@@ -66,8 +72,14 @@ class TestContrattoAvvisi:
 
 
 def _sorgente(monkeypatch, payload):
-    async def scarica(path: str):
-        return json.dumps(payload, ensure_ascii=False), payload
+    async def scarica(path: str, condizionali=None):
+        return Risposta(
+            modificato=True,
+            body=json.dumps(payload, ensure_ascii=False),
+            payload=payload,
+            etag=None,
+            last_modified=None,
+        )
 
     monkeypatch.setattr("viaggiaresicuri_mcp.client._scarica", scarica)
 
@@ -78,7 +90,8 @@ def _sorgente(monkeypatch, payload):
 
 from datetime import UTC, datetime, timedelta  # noqa: E402
 
-from viaggiaresicuri_mcp import client as client_module  # noqa: E402
+from viaggiaresicuri_mcp import client as client_module
+from viaggiaresicuri_mcp.client import Risposta  # noqa: E402
 from viaggiaresicuri_mcp.cache import Cache  # noqa: E402
 from viaggiaresicuri_mcp.config import ALERTS_TTL_SECONDS, alerts_path  # noqa: E402
 from viaggiaresicuri_mcp.errors import SourceUnavailable  # noqa: E402
@@ -91,9 +104,15 @@ def fonte_completa(monkeypatch, alerts_payloads):
         iso3 = path.rsplit("/", 1)[-1].removesuffix(".json")
         return alerts_payloads[iso3]
 
-    async def scarica(path: str):
+    async def scarica(path: str, condizionali=None):
         payload = risolvi(path)
-        return json.dumps(payload, ensure_ascii=False), payload
+        return Risposta(
+            modificato=True,
+            body=json.dumps(payload, ensure_ascii=False),
+            payload=payload,
+            etag=f'"{path}"',
+            last_modified=None,
+        )
 
     monkeypatch.setattr("viaggiaresicuri_mcp.client._scarica", scarica)
 
@@ -158,7 +177,7 @@ class TestNonVerificabile:
         await alerts_module.leggi_avvisi("ALB", "Albania")          # popola la cache
         await self._invecchia(cache, "ALB", ore=9)
 
-        async def giu(path):
+        async def giu(path, condizionali=None):
             raise SourceUnavailable("connessione rifiutata")
 
         monkeypatch.setattr(client_module, "_scarica", giu)
@@ -176,7 +195,7 @@ class TestNonVerificabile:
         await alerts_module.leggi_avvisi("UKR", "Ucraina")
         await self._invecchia(cache, "UKR", ore=9)
 
-        async def giu(path):
+        async def giu(path, condizionali=None):
             raise SourceUnavailable("timeout")
 
         monkeypatch.setattr(client_module, "_scarica", giu)
@@ -191,9 +210,9 @@ class TestNonVerificabile:
         chiamate: list[str] = []
         vero = client_module._scarica
 
-        async def contando(path):
+        async def contando(path, condizionali=None):
             chiamate.append(path)
-            return await vero(path)
+            return await vero(path, condizionali)
 
         monkeypatch.setattr(client_module, "_scarica", contando)
         await alerts_module.leggi_avvisi("ALB")

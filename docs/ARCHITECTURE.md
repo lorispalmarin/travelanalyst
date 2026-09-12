@@ -175,16 +175,26 @@ fixture. La semantica è una sola, e non è quella di una cache-library:
 
 ```
 entry presente, età < TTL   → si serve dalla cache, zero rete            (fresh)
-entry presente, età ≥ TTL   → si tenta il refetch
-                                riuscito → si aggiorna e si serve        (fresh)
-                                fallito  → si serve la copia vecchia     (stale)
+entry presente, età ≥ TTL   → si rivalida in modo condizionale
+                                304 → il corpo resta, si sposta la data  (fresh)
+                                200 → si aggiorna e si serve             (fresh)
+                                fonte giù → si serve la copia vecchia    (stale)
 entry assente, refetch fallito → errore esplicito, nessun ripiego
 ```
 
 **Il TTL è una soglia di rivalidazione, non una scadenza: nessuna entry viene mai cancellata.**
 Se il sito è giù da otto ore e il TTL è sei, l'entry è ancora lì e viene servita, dichiarata.
-Il quarto caso è il solo in cui l'assistente non risponde, ed è deliberato: l'alternativa sarebbe
+L'ultimo caso è il solo in cui l'assistente non risponde, ed è deliberato: l'alternativa sarebbe
 lasciar rispondere il modello a memoria su requisiti d'ingresso e rischi di sicurezza.
+
+Superata la soglia **non si riscarica**: la entry porta con sé `etag` e `last_modified`, e la
+richiesta diventa condizionale. Se la fonte risponde 304 il corpo non viene ritrasmesso e si
+aggiorna solo `retrieved_at` — 9 ms e zero byte invece di 148 ms e 48 KB, misurato. Quella
+distinzione è la parte interessante del contratto: `retrieved_at` è il momento dell'ultima
+**verifica**, non dello scaricamento, mentre `last_updated` resta la data che dichiara la fonte.
+Un terzo valore di `cache_status` tipo `revalidated` sarebbe stato facile da aggiungere e non
+c'è: per l'agente il dato è fresco e confermato, e allargare un contratto per esporre un
+dettaglio interno di trasporto non gli cambia una sola decisione.
 
 Due dettagli con una ragione. Le richieste allo stesso URL sono serializzate da un lock per URL,
 così una raffica di tool call non diventa una raffica di richieste alla fonte. E i 404 e i corpi

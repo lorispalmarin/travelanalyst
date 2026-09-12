@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastmcp import Client
 
 from viaggiaresicuri_mcp import client as client_module
+from viaggiaresicuri_mcp.client import Risposta
 from viaggiaresicuri_mcp.cache import Cache
 from viaggiaresicuri_mcp.countries import reset_index
 from viaggiaresicuri_mcp.errors import SourceNotFound, SourceUnavailable, UnexpectedPayload
@@ -26,21 +28,51 @@ AGGIORNATO = {"valore": "dopo"}
 
 
 class Fonte:
-    """Doppio del trasporto: conta le richieste e sa fingersi irraggiungibile."""
+    """Doppio del trasporto: conta le richieste, sa fare 304 e sa fingersi irraggiungibile.
+
+    Si comporta come l'origine vera: assegna un ETag a ogni payload e, se la richiesta arriva
+    con `If-None-Match` che combacia, risponde 304 senza corpo. `chiamate` conta le richieste,
+    `corpi` conta quelle che hanno davvero trasferito un payload — è la differenza fra le due
+    che dice se la rivalidazione condizionale sta funzionando.
+    """
 
     def __init__(self, payloads: dict[str, object]) -> None:
         self.payloads = payloads
         self.chiamate: list[str] = []
+        self.corpi: list[str] = []
+        self.condizionali: list[dict[str, str]] = []
         self.guasto: Exception | None = None
+        self.versione = 1
 
-    async def __call__(self, path: str):
+    def etag_di(self, path: str) -> str:
+        return f'"{path}-v{self.versione}"'
+
+    def cambia(self, path: str, payload: object) -> None:
+        """Il contenuto cambia alla fonte: nuovo payload, nuovo ETag."""
+        self.payloads[path] = payload
+        self.versione += 1
+
+    async def __call__(self, path: str, condizionali: dict[str, str] | None = None):
         self.chiamate.append(path)
+        self.condizionali.append(dict(condizionali or {}))
         if self.guasto is not None:
             raise self.guasto
         if path not in self.payloads:
             raise SourceNotFound(path)
+
+        etag = self.etag_di(path)
+        if (condizionali or {}).get("If-None-Match") == etag:
+            return Risposta(modificato=False, body=None, payload=None, etag=etag, last_modified=None)
+
         payload = self.payloads[path]
-        return json.dumps(payload, ensure_ascii=False), payload
+        self.corpi.append(path)
+        return Risposta(
+            modificato=True,
+            body=json.dumps(payload, ensure_ascii=False),
+            payload=payload,
+            etag=etag,
+            last_modified="Fri, 31 Jul 2026 12:19:25 GMT",
+        )
 
 
 @pytest.fixture
@@ -62,11 +94,21 @@ def fonte(monkeypatch) -> Fonte:
 
 
 async def invecchia(cache: Cache, path: str, ore: float) -> None:
-    """Riscrive la entry come se fosse stata scaricata `ore` fa."""
+    """Riscrive la entry come se fosse stata verificata `ore` fa, validator compresi.
+
+    Conservarli è essenziale: una entry senza ETag farebbe una GET piena invece di una richiesta
+    condizionale, e i test misurerebbero un comportamento che nella realtà non accade.
+    """
     url = client_module.url_for(path)
     entry = await cache.get(url)
     assert entry is not None
-    await cache.put(url, entry.body, retrieved_at=datetime.now(UTC) - timedelta(hours=ore))
+    await cache.put(
+        url,
+        entry.body,
+        retrieved_at=datetime.now(UTC) - timedelta(hours=ore),
+        etag=entry.etag,
+        last_modified=entry.last_modified,
+    )
 
 
 class TestSoglia:
@@ -93,13 +135,115 @@ class TestSoglia:
         monkeypatch.setattr(client_module, "CACHE_TTL_SECONDS", 21600)
         await client_module.fetch(PERCORSO)
         await invecchia(cache, PERCORSO, ore=7)
-        fonte.payloads[PERCORSO] = AGGIORNATO
+        fonte.cambia(PERCORSO, AGGIORNATO)
 
         servito = await client_module.fetch(PERCORSO)
         assert len(fonte.chiamate) == 2
         assert servito.payload == AGGIORNATO
         assert servito.cache_status == "fresh"
         assert servito.age_seconds == 0
+
+
+class TestRivalidazioneCondizionale:
+    """Scaduto il TTL non si riscarica: si chiede alla fonte se è cambiato.
+
+    La fonte espone ETag e Last-Modified e risponde 304 a zero byte (misurato in DISCOVERY.md),
+    e con `cache-control: public, max-age=0` chiede esplicitamente di rivalidare invece di
+    riscaricare. Questi test fissano il fatto che glielo si chieda per davvero.
+    """
+
+    async def test_i_validator_finiscono_nello_store(self, cache, fonte):
+        await client_module.fetch(PERCORSO)
+        entry = await cache.get(client_module.url_for(PERCORSO))
+        assert entry.etag == fonte.etag_di(PERCORSO)
+        assert entry.last_modified == "Fri, 31 Jul 2026 12:19:25 GMT"
+
+    async def test_oltre_il_ttl_chiede_invece_di_scaricare(self, cache, fonte, monkeypatch):
+        monkeypatch.setattr(client_module, "CACHE_TTL_SECONDS", 21600)
+        await client_module.fetch(PERCORSO)
+        await invecchia(cache, PERCORSO, ore=7)
+
+        servito = await client_module.fetch(PERCORSO)
+
+        assert len(fonte.chiamate) == 2, "la soglia è scaduta: si va in rete"
+        assert fonte.corpi == [PERCORSO], "ma il payload si trasferisce una volta sola"
+        assert fonte.condizionali[1] == {"If-None-Match": fonte.etag_di(PERCORSO)}
+        assert servito.payload == ORIGINALE
+        assert servito.cache_status == "fresh"
+        assert servito.age_seconds == 0, "confermata adesso"
+
+    async def test_il_304_sposta_la_verifica_non_il_contenuto(self, cache, fonte, monkeypatch):
+        """La distinzione che conta: il corpo è quello di prima, la verifica è di adesso."""
+        monkeypatch.setattr(client_module, "CACHE_TTL_SECONDS", 21600)
+        await client_module.fetch(PERCORSO)
+        prima = await cache.get(client_module.url_for(PERCORSO))
+        await invecchia(cache, PERCORSO, ore=7)
+
+        await client_module.fetch(PERCORSO)
+        dopo = await cache.get(client_module.url_for(PERCORSO))
+
+        assert dopo.body == prima.body, "il 304 non porta un corpo nuovo"
+        assert dopo.age_seconds() < 5, "ma la data della verifica si sposta a ora"
+
+    async def test_se_il_contenuto_e_cambiato_arriva_il_corpo_nuovo(self, cache, fonte, monkeypatch):
+        monkeypatch.setattr(client_module, "CACHE_TTL_SECONDS", 21600)
+        await client_module.fetch(PERCORSO)
+        await invecchia(cache, PERCORSO, ore=7)
+        fonte.cambia(PERCORSO, AGGIORNATO)
+
+        servito = await client_module.fetch(PERCORSO)
+
+        assert fonte.corpi == [PERCORSO, PERCORSO], "ETag diverso: la fonte rimanda il payload"
+        assert servito.payload == AGGIORNATO
+        entry = await cache.get(client_module.url_for(PERCORSO))
+        assert entry.etag == fonte.etag_di(PERCORSO), "si memorizza il validator nuovo"
+
+    async def test_una_entry_senza_validator_fa_una_richiesta_normale(self, cache, fonte, monkeypatch):
+        """Le righe scritte prima che esistessero le colonne non devono rompersi: si ripopolano."""
+        monkeypatch.setattr(client_module, "CACHE_TTL_SECONDS", 21600)
+        url = client_module.url_for(PERCORSO)
+        await cache.put(url, json.dumps(ORIGINALE), retrieved_at=datetime.now(UTC) - timedelta(hours=7))
+
+        servito = await client_module.fetch(PERCORSO)
+
+        assert fonte.condizionali == [{}], "senza validator non si manda un header inventato"
+        assert servito.payload == ORIGINALE
+        entry = await cache.get(url)
+        assert entry.etag is not None, "la prima rivalidazione riempie le colonne"
+
+    async def test_la_fonte_giu_vince_sulla_rivalidazione(self, cache, fonte, monkeypatch):
+        """Una richiesta condizionale che non arriva a destinazione resta una fonte irraggiungibile."""
+        monkeypatch.setattr(client_module, "CACHE_TTL_SECONDS", 21600)
+        await client_module.fetch(PERCORSO)
+        await invecchia(cache, PERCORSO, ore=9)
+        fonte.guasto = SourceUnavailable("connessione rifiutata")
+
+        servito = await client_module.fetch(PERCORSO)
+        assert servito.cache_status == "stale"
+        assert servito.payload == ORIGINALE
+
+
+class TestMigrazioneDelloStore:
+    async def test_uno_store_senza_le_colonne_nuove_non_va_buttato(self, tmp_path):
+        """Chi ha già una cache sul disco deve poter aggiornare il codice senza perderla."""
+        percorso = tmp_path / "vecchia.sqlite3"
+        conn = sqlite3.connect(percorso)
+        conn.execute(
+            "CREATE TABLE payloads (url TEXT PRIMARY KEY, body TEXT NOT NULL, "
+            "retrieved_at REAL NOT NULL, bytes INTEGER NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO payloads VALUES (?, ?, ?, ?)",
+            ("https://esempio/ALB.json", json.dumps(ORIGINALE), datetime.now(UTC).timestamp(), 20),
+        )
+        conn.commit()
+        conn.close()
+
+        entry = await Cache(percorso).get("https://esempio/ALB.json")
+
+        assert entry is not None, "la entry preesistente deve sopravvivere alla migrazione"
+        assert entry.payload() == ORIGINALE
+        assert entry.etag is None and entry.last_modified is None
 
 
 class TestFonteIrraggiungibile:
@@ -150,7 +294,7 @@ class TestIntegritaDelloStore:
         assert json.loads(entry.body) == ORIGINALE
 
     async def test_un_corpo_non_json_non_entra_in_cache(self, cache, monkeypatch):
-        async def html(path: str):
+        async def html(path: str, condizionali=None):
             raise UnexpectedPayload("non ha restituito JSON valido")
 
         monkeypatch.setattr(client_module, "_scarica", html)

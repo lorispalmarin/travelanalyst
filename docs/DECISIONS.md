@@ -38,20 +38,28 @@ esiste dove serve e resta piccolo: 124 chunk in una matrice numpy, nessun vector
 prezzo è che ci sono due modalità di accesso da spiegare, e che il routing fra le due va imposto
 nelle docstring e verificato sull'agente vero — cosa che la eval fa.
 
-## 3. Un TTL solo, ed è un limite dichiarato
+## 3. Un TTL solo, ma la rivalidazione è condizionale
 
 **Contesto.** I contenuti della fonte si muovono a ritmi diversi: i requisiti d'ingresso a mesi,
-il primo piano a settimane, gli avvisi in modo imprevedibile.
+il primo piano a settimane, gli avvisi in modo imprevedibile. Un TTL unico è quindi sempre
+sbagliato per qualcuno.
 
 **Decisione.** Un TTL unico, sei ore, configurabile (`VS_CACHE_TTL_SECONDS`), con **una sola**
-eccezione dichiarata (ADR 5). Non una tabella di TTL per tipo di contenuto.
+eccezione dichiarata (ADR 5) — e, alla scadenza, una richiesta **condizionale** invece di un
+nuovo scaricamento: `If-None-Match` con l'ETag memorizzato, o `If-Modified-Since` quando l'ETag
+manca. La fonte risponde 304 se non è cambiato niente, e allora si aggiorna solo il momento
+della verifica.
 
-**Conseguenze.** Il limite va detto, non nascosto: una scheda modificata dieci minuti fa può
-essere servita nella versione di sei ore prima. Su contenuti che si muovono a mesi il prezzo è
-piccolo, ma esiste. E c'è una circostanza aggravante emersa in fase di documentazione: la fonte
-espone `ETag` e `Last-Modified` e risponde `304` a zero byte, quindi rivalidare costerebbe quasi
-nulla e il TTL potrebbe essere molto più corto. Non averlo implementato è un debito di tempo, non
-una scelta di design, ed è la prima voce della lista "con più tempo".
+**Conseguenze.** Il costo della soglia scaduta passa da 48 KB a zero byte e da 148 ms a 9 ms
+(misure in [DISCOVERY.md](DISCOVERY.md)). Il limite che resta cambia natura: non è più banda
+sprecata, è **latenza** — un round trip su ogni tool call che supera la soglia, e quella è la
+ragione per non scendere a TTL di minuti su tutto. Resta vero che una scheda modificata dieci
+minuti fa può essere servita nella versione di sei ore prima; TTL differenziati per tipo di
+contenuto sarebbero preferibili e restano non implementati, ma ora costano molto meno di prima.
+
+C'è anche una ragione che non è di efficienza: `cache-control: public, max-age=0` più i validator
+è il modo in cui l'origine dice "rivalida, non riscaricare". Farlo è rispettare una politica che
+la fonte dichiara — che è l'altra metà dell'ADR 4.
 
 ## 4. Il TTL non cancella niente: stale-if-error, e una ragione etica
 
@@ -73,6 +81,12 @@ d'uso per client automatici: `robots.txt` non dichiara né limiti né cadenze. U
 rigenera traffico a ogni tool call × turno di conversazione × sviluppatore impone un costo a
 un'infrastruttura pubblica in cambio di niente, visto che quei contenuti si muovono su scala di
 settimane. Il permesso tecnico non è un'autorizzazione: il limite se lo mette il client.
+
+Un contratto d'uso non c'è, ma una **politica di cache** sì, e va letta come tale: gli header
+della fonte dicono `cache-control: public, max-age=0` e portano ETag e Last-Modified. Tradotto:
+"rivalida quando vuoi, ma non ripeterti il download". È l'unica indicazione che l'origine dà su
+come vuole essere interrogata, e il client la segue (ADR 3). Autolimitarsi scegliendo un TTL
+mentre si ignora ciò che la fonte chiede sarebbe stato un rispetto solo dichiarato.
 
 ## 5. Sugli avvisi il TTL scende a 15 minuti
 

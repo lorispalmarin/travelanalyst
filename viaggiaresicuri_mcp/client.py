@@ -6,10 +6,16 @@ così i tool non devono conoscere la libreria di trasporto.
 Sopra il trasporto sta la cache (`cache.py`), con una semantica precisa:
 
     entry presente, età < TTL   -> si serve dalla cache, zero rete            (fresh)
-    entry presente, età >= TTL  -> si tenta il refetch
-                                     riuscito -> si aggiorna e si serve       (fresh)
-                                     fallito  -> si serve la copia vecchia    (stale)
+    entry presente, età >= TTL  -> si rivalida in modo condizionale
+                                     304 -> il corpo resta, si sposta la data (fresh)
+                                     200 -> si aggiorna e si serve            (fresh)
+                                     fonte giù -> si serve la copia vecchia   (stale)
     entry assente,  refetch fallito -> errore esplicito, nessun ripiego
+
+Superata la soglia non si riscarica il payload: si manda `If-None-Match` (o `If-Modified-Since`)
+e si lascia decidere alla fonte. Un `304` costa un round trip e zero byte, e la fonte lo chiede
+esplicitamente — `cache-control: public, max-age=0` più ETag significa "rivalida, non
+riscaricare".
 
 Il terzo caso è il solo in cui l'assistente non può rispondere, ed è giusto così: l'alternativa
 sarebbe lasciare che il modello risponda a memoria su requisiti di ingresso e rischi di
@@ -48,6 +54,22 @@ CacheStatus = Literal["fresh", "stale"]
 _client: httpx.AsyncClient | None = None
 _cache: Cache | None = None
 _in_volo: dict[str, asyncio.Lock] = {}
+
+
+@dataclass(frozen=True)
+class Risposta:
+    """Come è andata la richiesta alla fonte.
+
+    Due esiti, e li decide la fonte: `modificato=True` con un corpo nuovo, oppure un 304 che
+    conferma la copia che abbiamo già. Nel secondo caso `body` e `payload` sono `None`, perché
+    la fonte non ci ha rimandato niente — è esattamente il punto.
+    """
+
+    modificato: bool
+    body: str | None
+    payload: Any
+    etag: str | None
+    last_modified: str | None
 
 
 @dataclass(frozen=True)
@@ -92,22 +114,49 @@ def url_for(path: str) -> str:
     return f"{BASE_URL}{path}"
 
 
-async def _scarica(path: str) -> tuple[str, Any]:
+def _condizionali(entry: Entry | None) -> dict[str, str]:
+    """Gli header con cui chiedere "è cambiato?" invece di "dammelo".
+
+    `If-None-Match` quando abbiamo un ETag, altrimenti `If-Modified-Since`. Se la entry non ha
+    validator — perché è stata scritta prima che esistessero queste colonne — non si manda
+    niente e la richiesta è una GET normale, che li riporterà indietro.
+    """
+    if entry is None:
+        return {}
+    if entry.etag:
+        return {"If-None-Match": entry.etag}
+    if entry.last_modified:
+        return {"If-Modified-Since": entry.last_modified}
+    return {}
+
+
+async def _scarica(path: str, condizionali: dict[str, str] | None = None) -> Risposta:
     """GET con retry su errori transitori. 404 e payload malformati non si ritentano.
 
-    Restituisce il corpo grezzo *e* il payload decodificato: il primo è quello che finisce in
-    cache, il secondo evita di riparsare. Un corpo che non è JSON non entra mai in cache.
+    Con `condizionali` la richiesta diventa condizionale: la fonte può rispondere `304 Not
+    Modified` senza corpo, e allora non c'è niente da decodificare né da riscrivere in cache.
+    Un corpo che non è JSON non entra mai in cache.
     """
     client = get_client()
     last_error: Exception | None = None
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            response = await client.get(path)
+            response = await client.get(path, headers=condizionali or None)
         except (httpx.TimeoutException, httpx.TransportError) as exc:
             last_error = exc
             logger.warning("tentativo %s/%s fallito per %s: %s", attempt, MAX_ATTEMPTS, path, exc)
         else:
+            if response.status_code == 304:
+                # La fonte ha confermato la nostra copia senza rimandarla: zero byte di corpo.
+                logger.debug("%s non modificato (304)", path)
+                return Risposta(
+                    modificato=False,
+                    body=None,
+                    payload=None,
+                    etag=response.headers.get("etag"),
+                    last_modified=response.headers.get("last-modified"),
+                )
             if response.status_code == 404:
                 raise SourceNotFound(f"{path} non esiste sulla fonte")
             if response.status_code >= 500:
@@ -121,9 +170,16 @@ async def _scarica(path: str) -> tuple[str, Any]:
             else:
                 body = response.text
                 try:
-                    return body, json.loads(body)
+                    payload = json.loads(body)
                 except (json.JSONDecodeError, ValueError) as exc:
                     raise UnexpectedPayload(f"{path} non ha restituito JSON valido") from exc
+                return Risposta(
+                    modificato=True,
+                    body=body,
+                    payload=payload,
+                    etag=response.headers.get("etag"),
+                    last_modified=response.headers.get("last-modified"),
+                )
 
         if attempt < MAX_ATTEMPTS:
             await asyncio.sleep(BACKOFF_SECONDS * 2 ** (attempt - 1))
@@ -133,8 +189,7 @@ async def _scarica(path: str) -> tuple[str, Any]:
 
 async def fetch_json(path: str) -> Any:
     """Solo rete, nessuna cache. Resta il punto d'ingresso di chi vuole il dato di sicuro fresco."""
-    _, payload = await _scarica(path)
-    return payload
+    return (await _scarica(path)).payload
 
 
 def _da_entry(entry: Entry, stato: CacheStatus) -> Fetched:
@@ -174,7 +229,7 @@ async def fetch(path: str, ttl_seconds: int | None = None) -> Fetched:
                 return _da_entry(entry, "fresh")
 
         try:
-            body, payload = await _scarica(path)
+            risposta = await _scarica(path, _condizionali(entry))
         except SourceUnavailable as exc:
             # La fonte non risponde. Se abbiamo una copia la serviamo comunque, qualunque sia la
             # sua età: nessuna eviction l'ha rimossa proprio per questo momento. 404 e payload
@@ -188,5 +243,16 @@ async def fetch(path: str, ttl_seconds: int | None = None) -> Fetched:
             )
             return _da_entry(entry, "stale")
 
-        aggiornata = await cache.put(url, body)
-        return Fetched(payload, aggiornata.retrieved_at, "fresh", 0)
+        if not risposta.modificato:
+            # 304: il contenuto che abbiamo è ancora quello buono. Si sposta il momento della
+            # verifica, non il contenuto — `retrieved_at` dice "confermato adesso", mentre la
+            # data della fonte (`updateDate`, esposta come `last_updated`) resta quella che è.
+            confermata = await cache.conferma(
+                url, etag=risposta.etag, last_modified=risposta.last_modified
+            )
+            return _da_entry(confermata or entry, "fresh")
+
+        aggiornata = await cache.put(
+            url, risposta.body, etag=risposta.etag, last_modified=risposta.last_modified
+        )
+        return Fetched(risposta.payload, aggiornata.retrieved_at, "fresh", 0)

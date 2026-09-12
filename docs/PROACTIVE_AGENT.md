@@ -54,8 +54,8 @@ Paese non ha bisogno di 5 minuti di risoluzione.
 
 **La rivalidazione condizionale rende il conto sostenibile.** La fonte espone `ETag` e
 `Last-Modified` e risponde `304` a zero byte (misurato, vedi [DISCOVERY.md](DISCOVERY.md)): un
-giro completo su 222 Paesi costa 222 round-trip e praticamente nessun byte. È la stessa
-implementazione mancante che l'ADR 3 mette in cima ai lavori futuri, e qui smette di essere
+giro completo su 222 Paesi costa 222 round-trip e praticamente nessun byte. È già implementata
+nel client (ADR 3), quindi il poller la eredita invece di dovercela aggiungere. E qui non è
 un'ottimizzazione: senza, un poller a 5 minuti scaricherebbe payload interi per sempre, e la
 ragione etica dell'ADR 4 verrebbe meno proprio nel componente che genera più traffico.
 

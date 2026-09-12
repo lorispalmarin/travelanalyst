@@ -9,6 +9,7 @@ from fastmcp import Client
 
 from viaggiaresicuri_mcp.countries import reset_index
 from viaggiaresicuri_mcp.errors import SourceNotFound
+from viaggiaresicuri_mcp.client import Risposta
 from viaggiaresicuri_mcp.server import mcp
 
 
@@ -28,9 +29,15 @@ def fonte_finta(monkeypatch, country_records, albania_payload, austria_payload, 
             return austria_payload
         raise SourceNotFound(path)
 
-    async def scarica(path: str):
+    async def scarica(path: str, condizionali=None):
         payload = risolvi(path)
-        return json.dumps(payload, ensure_ascii=False), payload
+        return Risposta(
+            modificato=True,
+            body=json.dumps(payload, ensure_ascii=False),
+            payload=payload,
+            etag=f'"{path}"',
+            last_modified=None,
+        )
 
     # Si sostituisce il trasporto, non i tre moduli che lo usano: sotto la cache, così lo stesso
     # doppio vale con la cache accesa o spenta.

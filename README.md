@@ -32,7 +32,7 @@ L'elenco completo è in [.env.example](.env.example), con il significato di cias
 .venv/bin/travelanalyst              # assistente da riga di comando
 .venv/bin/travelanalyst-web          # stessa cosa via browser, http://127.0.0.1:8000
 .venv/bin/python server.py           # solo il server MCP, su stdio
-make test                            # 219 test offline, nessuna rete
+make test                            # 226 test offline, nessuna rete
 make test-all                        # aggiunge 8 test sulla fonte reale e 2 sul modello
 ```
 
@@ -64,7 +64,7 @@ server.py              shim per i launcher MCP esterni (Claude Desktop, mcp.json
 viaggiaresicuri_mcp/   il server: tool, contratto, normalizzazione, client, cache
     data/              l'indice semantico committato, asset del pacchetto
 assistant/             l'agente LangChain: CLI, UI web, system prompt
-tests/                 219 test offline, 8 sulla fonte reale, 2 sul modello
+tests/                 226 test offline, 8 sulla fonte reale, 2 sul modello
 scripts/               ingest dell'indice
     discovery/         gli script con cui sono state esplorate le fonti
 docs/                  architettura, discovery, decisioni, agente proattivo
@@ -128,6 +128,9 @@ in corso cambiava l'inquadramento della risposta.
   contro i modelli Pydantic: se la Farnesina cambia una chiave, lo dice il test.
 - **La fonte irraggiungibile non azzittisce l'assistente**: si serve l'ultima copia locale,
   dichiarata come tale nella risposta.
+- **Scaduto il TTL non si riscarica, si chiede.** Richiesta condizionale con `If-None-Match`: se
+  il contenuto non è cambiato la fonte risponde 304 e la verifica costa **9 ms e zero byte**
+  invece di 148 ms e 48 KB.
 - **"Non pubblicato" non diventa mai "nessun rischio"**, né sui campi vuoti della scheda né
   sull'assenza di avvisi. È imposto dallo schema, non solo dal prompt.
 
@@ -146,7 +149,7 @@ in corso cambiava l'inquadramento della risposta.
 
 | Suite | Comando | Copre | Esito |
 |---|---|---|---|
-| offline | `make test` | 219 test su contratto, normalizzazione, cache, tool, prompt, packaging | verdi |
+| offline | `make test` | 226 test su contratto, normalizzazione, cache, tool, prompt, packaging | verdi |
 | fonte reale | `pytest -m network` | 8 test: tutte le 222 schede validate, invarianti sui campi vuoti | verdi |
 | eval del modello | `pytest -m llm -s` | 12 casi sull'assistente vero + riuso su due turni | 12/12 |
 
@@ -172,19 +175,17 @@ regressione, non una misura indipendente della qualità.
 
 ## Limiti noti e cosa farei con più tempo
 
-1. **Rivalidazione condizionale.** La fonte espone `ETag` e `Last-Modified` su tutti gli endpoint
-   e risponde `304` a zero byte — verificato. Oggi non li uso: alla scadenza del TTL riscarico il
-   payload intero. Implementarli renderebbe la rivalidazione quasi gratuita, e con essa un TTL
-   molto più corto. È la prima cosa da fare.
-2. **TTL differenziati per tipo di contenuto.** Oggi ce n'è uno solo, sei ore, più una sola
+1. **TTL differenziati per tipo di contenuto.** Oggi ce n'è uno solo, sei ore, più una sola
    eccezione dichiarata a 15 minuti sugli avvisi. Requisiti d'ingresso e mobilità potrebbero
-   averne uno molto più lungo, il primo piano molto più corto.
-3. **Misurare il retrieval invece di aneddotarlo.** Serve un set di query con il chunk atteso e
+   averne uno molto più lungo, il primo piano molto più corto. Da quando la rivalidazione è
+   condizionale costa meno di prima, ma resta il limite più visibile: una scheda aggiornata dieci
+   minuti fa può essere servita nella versione di sei ore prima.
+2. **Misurare il retrieval invece di aneddotarlo.** Serve un set di query con il chunk atteso e
    un recall@k, non due esempi. Il difetto noto suggerisce che un ibrido lessicale aiuterebbe,
    ma senza misura è un'ipotesi.
-4. **Persistere gli `id` degli avvisi già visti.** È la primitiva che manca all'agente proattivo:
+3. **Persistere gli `id` degli avvisi già visti.** È la primitiva che manca all'agente proattivo:
    una tabella `(id, nazione, tsModifica, first_seen)` e il "cosa è cambiato" diventa una query.
-5. **Dieci domande scritte da qualcun altro.** È il modo più rapido per scoprire dove il sistema
+4. **Dieci domande scritte da qualcun altro.** È il modo più rapido per scoprire dove il sistema
    si rompe davvero, e l'unico che non eredita i miei presupposti.
 
 ---

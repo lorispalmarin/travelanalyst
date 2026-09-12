@@ -9,9 +9,13 @@ Due funzioni, in ordine di importanza:
 2. **Continuare a rispondere quando la fonte non risponde.**
 
 La regola che governa tutto: **il TTL è una soglia di rivalidazione, non una scadenza di vita.**
-Una entry scaduta non viene mai cancellata: superato il TTL si *tenta* il refetch, e se il
+Una entry scaduta non viene mai cancellata: superato il TTL si *tenta* di rivalidarla, e se il
 tentativo fallisce si serve comunque la copia vecchia, dichiarandola. Non c'è eviction: la
 retention è illimitata per costruzione, non per dimenticanza.
+
+La rivalidazione è condizionale, e per questo ogni riga porta anche `etag` e `last_modified`: si
+chiede alla fonte "è cambiato?" invece di "dammelo". Quando risponde 304 si aggiorna soltanto
+`retrieved_at` — la copia è stata *verificata* adesso, pur essendo stata *scaricata* prima.
 
 Si cacha il corpo grezzo della risposta, sotto il livello di normalizzazione: un cambio di
 parsing non invalida la cache, e ogni riga è un payload della fonte riusabile come fixture.
@@ -33,21 +37,35 @@ logger = logging.getLogger(__name__)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS payloads (
-    url          TEXT PRIMARY KEY,
-    body         TEXT NOT NULL,
-    retrieved_at REAL NOT NULL,
-    bytes        INTEGER NOT NULL
+    url           TEXT PRIMARY KEY,
+    body          TEXT NOT NULL,
+    retrieved_at  REAL NOT NULL,
+    bytes         INTEGER NOT NULL,
+    etag          TEXT,
+    last_modified TEXT
 )
 """
+
+# I validator sono arrivati dopo, e uno store già sul disco non va buttato per aggiungere due
+# colonne: senza di esse la entry funziona comunque, la prima rivalidazione le riempie.
+COLONNE_AGGIUNTE = ("etag", "last_modified")
 
 
 @dataclass(frozen=True)
 class Entry:
-    """Una risposta della fonte, come è arrivata."""
+    """Una risposta della fonte, come è arrivata.
+
+    `retrieved_at` è il momento dell'ultima *verifica*, non necessariamente dello scaricamento:
+    un 304 conferma che il corpo è ancora quello buono e sposta la data della verifica lasciando
+    il contenuto dov'è. `etag` e `last_modified` sono i validator con cui chiedere alla fonte
+    "è cambiato?" senza farsi rimandare il payload.
+    """
 
     url: str
     body: str
     retrieved_at: datetime
+    etag: str | None = None
+    last_modified: str | None = None
 
     def age_seconds(self, now: float | None = None) -> int:
         adesso = time.time() if now is None else now
@@ -78,6 +96,11 @@ class Cache:
         if not self._preparata:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(SCHEMA)
+            presenti = {riga[1] for riga in conn.execute("PRAGMA table_info(payloads)")}
+            for colonna in COLONNE_AGGIUNTE:
+                if colonna not in presenti:
+                    conn.execute(f"ALTER TABLE payloads ADD COLUMN {colonna} TEXT")
+                    logger.info("cache: aggiunta la colonna %s allo store esistente", colonna)
             conn.commit()
             self._preparata = True
         return conn
@@ -85,22 +108,59 @@ class Cache:
     def _leggi(self, url: str) -> Entry | None:
         with self._connessione() as conn:
             riga = conn.execute(
-                "SELECT body, retrieved_at FROM payloads WHERE url = ?", (url,)
+                "SELECT body, retrieved_at, etag, last_modified FROM payloads WHERE url = ?",
+                (url,),
             ).fetchone()
         if riga is None:
             return None
-        body, quando = riga
-        return Entry(url=url, body=body, retrieved_at=datetime.fromtimestamp(quando, tz=UTC))
+        body, quando, etag, last_modified = riga
+        return Entry(
+            url=url,
+            body=body,
+            retrieved_at=datetime.fromtimestamp(quando, tz=UTC),
+            etag=etag,
+            last_modified=last_modified,
+        )
 
-    def _scrivi(self, url: str, body: str, quando: datetime) -> Entry:
+    def _scrivi(
+        self,
+        url: str,
+        body: str,
+        quando: datetime,
+        etag: str | None,
+        last_modified: str | None,
+    ) -> Entry:
         with self._connessione() as conn:
             conn.execute(
-                "INSERT INTO payloads (url, body, retrieved_at, bytes) VALUES (?, ?, ?, ?) "
+                "INSERT INTO payloads (url, body, retrieved_at, bytes, etag, last_modified) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(url) DO UPDATE SET body=excluded.body, "
-                "retrieved_at=excluded.retrieved_at, bytes=excluded.bytes",
-                (url, body, quando.timestamp(), len(body.encode("utf-8"))),
+                "retrieved_at=excluded.retrieved_at, bytes=excluded.bytes, "
+                "etag=excluded.etag, last_modified=excluded.last_modified",
+                (url, body, quando.timestamp(), len(body.encode("utf-8")), etag, last_modified),
             )
-        return Entry(url=url, body=body, retrieved_at=quando)
+        return Entry(url=url, body=body, retrieved_at=quando, etag=etag, last_modified=last_modified)
+
+    def _conferma(
+        self,
+        url: str,
+        quando: datetime,
+        etag: str | None,
+        last_modified: str | None,
+    ) -> Entry | None:
+        """La fonte ha detto 304: il corpo resta, si sposta solo la data della verifica.
+
+        I validator si sovrascrivono solo se il 304 ne porta di nuovi — la RFC lo consente e
+        alcune origini lo fanno — altrimenti restano quelli che avevamo.
+        """
+        with self._connessione() as conn:
+            conn.execute(
+                "UPDATE payloads SET retrieved_at = ?, "
+                "etag = COALESCE(?, etag), last_modified = COALESCE(?, last_modified) "
+                "WHERE url = ?",
+                (quando.timestamp(), etag, last_modified, url),
+            )
+        return self._leggi(url)
 
     def _misura(self) -> tuple[int, int]:
         with self._connessione() as conn:
@@ -115,9 +175,30 @@ class Cache:
         """La entry per quell'URL, qualunque sia la sua età. None se non l'abbiamo mai vista."""
         return await asyncio.to_thread(self._leggi, url)
 
-    async def put(self, url: str, body: str, retrieved_at: datetime | None = None) -> Entry:
+    async def put(
+        self,
+        url: str,
+        body: str,
+        retrieved_at: datetime | None = None,
+        etag: str | None = None,
+        last_modified: str | None = None,
+    ) -> Entry:
         """Sovrascrive la entry. `retrieved_at` esplicito serve a ricostruire uno stato passato."""
-        return await asyncio.to_thread(self._scrivi, url, body, retrieved_at or datetime.now(UTC))
+        return await asyncio.to_thread(
+            self._scrivi, url, body, retrieved_at or datetime.now(UTC), etag, last_modified
+        )
+
+    async def conferma(
+        self,
+        url: str,
+        retrieved_at: datetime | None = None,
+        etag: str | None = None,
+        last_modified: str | None = None,
+    ) -> Entry | None:
+        """Registra che la copia è stata verificata adesso, senza toccarne il contenuto."""
+        return await asyncio.to_thread(
+            self._conferma, url, retrieved_at or datetime.now(UTC), etag, last_modified
+        )
 
     async def stats(self) -> tuple[int, int]:
         """(numero di entry, byte totali): serve a mostrare che la retention è sotto controllo."""

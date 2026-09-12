@@ -121,7 +121,7 @@ per cui il limite se lo impone il client: vedi l'ADR 4 in [DECISIONS.md](DECISIO
 è cambiato" va costruito conservando quello che si è già visto, ed è il primo mattone dell'agente
 proattivo.
 
-## ETag e Last-Modified: ci sono, e cambiano le cose
+## ETag e Last-Modified: ci sono, e si usano
 
 Tutti gli endpoint espongono entrambi gli header, e rispondono alle richieste condizionali:
 
@@ -135,15 +135,25 @@ $ curl -H 'If-None-Match: "166d88ad…"' .../schede_paese/ALB.json
 HTTP 304 — 0 byte scaricati
 ```
 
-La conseguenza è concreta e non è a favore dell'implementazione attuale. Oggi, alla scadenza del
-TTL, il client riscarica il payload intero: 34 KB in mediana per una scheda. Con `If-None-Match`
-la stessa verifica costerebbe un round-trip e zero byte, e renderebbe possibile un TTL molto più
-corto senza pesare sulla fonte — cioè toglierebbe quasi per intero il limite che l'ADR 3 dichiara.
+Il 304 è stato riverificato con gli header che manda davvero `httpx` — non solo con `curl` —
+perché un `Accept-Encoding` diverso può far variare l'ETag e produrre 200 all'infinito senza che
+nessuno se ne accorga. Non succede: l'ETag è forte, il 304 arriva, e un ETag sbagliato torna
+correttamente 200. Da notare che il CDN serve il JSON **non compresso**, quindi la rivalidazione
+piena costa i 48 KB pieni della scheda albanese, senza gzip ad ammorbidire.
 
-Vale anche la lettura opposta: `cache-control: public, max-age=0` dice che l'origine **si aspetta**
-che i client rivalidino, e che considera la rivalidazione condizionale il comportamento normale.
-Non implementarla è una scelta di tempo, non di design, ed è per questo che sta in cima a "cosa
-farei con più tempo" nel README e non fra i limiti accettati.
+`cache-control: public, max-age=0` completa il quadro: l'origine **si aspetta** che i client
+rivalidino, e considera la richiesta condizionale il comportamento normale. Il client la fa:
+scaduto il TTL manda `If-None-Match` (o `If-Modified-Since` quando l'ETag manca) e lascia
+decidere alla fonte. Misurato sulla scheda dell'Albania:
+
+| | latenza | corpo trasferito |
+|---|---|---|
+| primo scaricamento | 148 ms | 48.823 byte |
+| entro il TTL | 0 ms | zero, non si esce in rete |
+| TTL scaduto, contenuto invariato | **9 ms** | **zero** |
+
+I 9 ms sono il round trip: resta, e per quello il TTL continua a servire. Quello che spariscono
+sono i byte.
 
 ## I PDF: misurati, poi esclusi
 
