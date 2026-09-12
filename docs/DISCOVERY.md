@@ -98,8 +98,11 @@ sezioni contengono refusi di redazione che vanno accettati come sono: `pacchitti
 `prepareraunafarmacia`, `restituzionecarateidenta`.
 
 **Nomi solo in italiano, e territori non sovrani.** "Isole Marianne Settentrionali", "Sint
-Maarten". La risoluzione normalizza gli accenti, accetta alias inglesi e fa fuzzy match sui
-refusi, ma sull'ambiguità non sceglie: "Corea" restituisce due candidati.
+Maarten". Sono però i nomi **ufficiali** italiani — `Paesi Bassi`, `Federazione Russa`,
+`Repubblica Popolare Cinese` — cioè esattamente quelli che un modello produce da sé, e questo
+decide il disegno della risoluzione: il tool riconosce codici e nomi dell'elenco, la traduzione
+dal parlato ("olanda", "Bali") la fa il modello prima di chiamare. Sull'ambiguità non si
+sceglie: "Corea" restituisce due candidati.
 
 ## Cosa ho cercato e non ho trovato
 

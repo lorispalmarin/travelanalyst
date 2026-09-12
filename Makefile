@@ -4,7 +4,7 @@ VENV ?= .venv/bin
 IMMAGINE ?= travelanalyst:dev
 
 help:
-	@echo "make test        suite offline (226 test, nessuna rete)"
+	@echo "make test        suite offline (217 test, nessuna rete)"
 	@echo "make test-all    offline + fonte reale + eval del modello"
 	@echo "make ingest      ricostruisce l'indice semantico (richiede credenziali di embedding)"
 	@echo "make docker      costruisce l'immagine $(IMMAGINE)"

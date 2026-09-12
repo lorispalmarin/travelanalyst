@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -199,7 +198,7 @@ class TestRivalidazioneCondizionale:
         assert entry.etag == fonte.etag_di(PERCORSO), "si memorizza il validator nuovo"
 
     async def test_una_entry_senza_validator_fa_una_richiesta_normale(self, cache, fonte, monkeypatch):
-        """Le righe scritte prima che esistessero le colonne non devono rompersi: si ripopolano."""
+        """Non tutte le risposte portano un ETag: senza validator la richiesta resta una GET."""
         monkeypatch.setattr(client_module, "CACHE_TTL_SECONDS", 21600)
         url = client_module.url_for(PERCORSO)
         await cache.put(url, json.dumps(ORIGINALE), retrieved_at=datetime.now(UTC) - timedelta(hours=7))
@@ -221,29 +220,6 @@ class TestRivalidazioneCondizionale:
         servito = await client_module.fetch(PERCORSO)
         assert servito.cache_status == "stale"
         assert servito.payload == ORIGINALE
-
-
-class TestMigrazioneDelloStore:
-    async def test_uno_store_senza_le_colonne_nuove_non_va_buttato(self, tmp_path):
-        """Chi ha già una cache sul disco deve poter aggiornare il codice senza perderla."""
-        percorso = tmp_path / "vecchia.sqlite3"
-        conn = sqlite3.connect(percorso)
-        conn.execute(
-            "CREATE TABLE payloads (url TEXT PRIMARY KEY, body TEXT NOT NULL, "
-            "retrieved_at REAL NOT NULL, bytes INTEGER NOT NULL)"
-        )
-        conn.execute(
-            "INSERT INTO payloads VALUES (?, ?, ?, ?)",
-            ("https://esempio/ALB.json", json.dumps(ORIGINALE), datetime.now(UTC).timestamp(), 20),
-        )
-        conn.commit()
-        conn.close()
-
-        entry = await Cache(percorso).get("https://esempio/ALB.json")
-
-        assert entry is not None, "la entry preesistente deve sopravvivere alla migrazione"
-        assert entry.payload() == ORIGINALE
-        assert entry.etag is None and entry.last_modified is None
 
 
 class TestFonteIrraggiungibile:

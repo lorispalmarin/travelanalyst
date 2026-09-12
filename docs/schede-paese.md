@@ -81,13 +81,18 @@ quanti paesi il nodo esiste ma `contenuto` è "".
 dettaglio corrispondenti lo sono fino al 37%: il riassunto è disponibile esattamente quando
 serve come fallback.
 
-Con un'eccezione che si vede solo dopo la normalizzazione: **26 nodi di primo piano su 1.110
-(2,3%) contengono soltanto un rimando ad altre sezioni**, quindi una volta tolto il rimando non
-resta niente — 12 su `Aree-di-particolare-cautela`, 11 su `Documenti-e-visti`, 3 su
-`Vaccinazioni`. Per sei paesi (**Polonia, Nuova Zelanda, Dominica, Madagascar, Gambia, Timor
-Est**) questo si combina col dettaglio vuoto e produce un **vicolo cieco della fonte**: il primo
-piano dice "consultare la Sezione Sicurezza", e quella sezione è vuota. Lì la risposta corretta è
-"non pubblicato", non una rassicurazione. Il fallback copre comunque 76 casi su 82 (93%).
+Con un'eccezione: **26 nodi di primo piano su 1.110 (2,3%) contengono soltanto un rimando ad
+altre sezioni** — 12 su `Aree-di-particolare-cautela`, 11 su `Documenti-e-visti`, 3 su
+`Vaccinazioni`. Esempi verificati: Gabon (`Consultare la Sezione "Requisiti di Ingresso" di
+questa Scheda.`), Nuova Zelanda e Burundi sulle aree di cautela.
+
+Quei nodi restano `available` con il loro testo, perché i rimandi non vengono rimossi: si
+estraggono in `see_also` e il testo resta quello della fonte. Per sei paesi (**Polonia, Nuova
+Zelanda, Dominica, Madagascar, Gambia, Timor Est**) questo si combina col dettaglio vuoto e
+produce un **vicolo cieco della fonte**: il primo piano dice "consultare la Sezione Sicurezza" e
+quella sezione è vuota, quindi il fallback serve un puntatore dichiarato come riassunto. È il
+prezzo di non cancellare testo della fonte in base a un'euristica, e il `see_also` dice all'agente
+che quel contenuto è un rinvio. Il fallback copre 76 casi su 82 (93%).
 
 I campi vuoti si concentrano sulle destinazioni europee più battute — Paesi Bassi 6 nodi vuoti
 su 28, Francia, Belgio e Andorra 5, Austria, Giappone, Malta e Monaco 4 — cioè proprio i paesi
@@ -139,7 +144,7 @@ scheda "tipica" costa poco, il caso peggiore no.
 2. **`infoPrimopiano` è lo strato di sintesi**, con un rimando esplicito ad altre sezioni
    ("consultare la Sezione Sicurezza di questa Scheda"): presente in 35/35 paesi per
    `Vaccinazioni`, 34/35 per `Documenti-e-visti`, 32/35 per `Aree-di-particolare-cautela`.
-   In un paio di casi il nodo è *solo* il rimando (Thailandia, `Aree-di-particolare-cautela`).
+   In 26 nodi su 1.110 il nodo è *solo* il rimando (Gabon, Nuova Zelanda, Burundi).
 3. **Non vale `dettaglio ⊇ sintesi`.** Per il Brasile `infoPrimopiano.Documenti-e-visti` (886
    char) è più ricco di `Passaporto` + `Visto-di-ingresso` messi insieme (489 char).
 4. **`Moneta` non è prosa**: mediana 16 caratteri, è un valore.

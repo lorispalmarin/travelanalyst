@@ -2,34 +2,33 @@ from __future__ import annotations
 
 import pytest
 
-from viaggiaresicuri_mcp.countries import ALIASES, CountryIndex, fold
+from viaggiaresicuri_mcp.countries import CountryIndex
 from viaggiaresicuri_mcp.errors import CountryNotFound
 
 
 class TestRisoluzione:
+    """Tre regole: codice, nome esatto, nome parziale non ambiguo. Nient'altro."""
+
     @pytest.mark.parametrize(
         "query,iso3",
         [
             ("Thailandia", "THA"),
             ("THA", "THA"),
             ("TH", "THA"),
-            ("thailand", "THA"),
-            ("tailandia", "THA"),
-            ("Cina", "CHN"),
-            ("china", "CHN"),
-            ("russia", "RUS"),
-            ("inghilterra", "GBR"),
-            ("olanda", "NLD"),
-            ("Stati Uniti", "USA"),
-            ("Dubai", "ARE"),
-            ("Peru", "PER"),
+            ("thailandia", "THA"),          # il fold assorbe maiuscole e accenti
             ("perù", "PER"),
+            ("Peru", "PER"),
             ("Costa d'Avorio", "CIV"),
-            ("corea del sud", "KOR"),
-            ("corea del nord", "PRK"),
+            ("Paesi Bassi", "NLD"),
+            ("Regno Unito", "GBR"),
+            ("Federazione Russa", "RUS"),
+            ("Repubblica Popolare Cinese", "CHN"),
+            ("Corea del Sud", "KOR"),
+            ("Corea del Nord", "PRK"),
+            ("Stati Uniti", "USA"),         # parziale: la fonte dice "Stati Uniti d'America"
         ],
     )
-    def test_casi_reali(self, index: CountryIndex, query: str, iso3: str):
+    def test_nomi_ufficiali_e_codici(self, index: CountryIndex, query: str, iso3: str):
         match = index.resolve(query)
         assert match.match is not None, f"{query} non risolto"
         assert match.match.iso3 == iso3
@@ -48,31 +47,33 @@ class TestRisoluzione:
             index.resolve("   ")
 
 
-class TestMatchDeboli:
-    """Un solo candidato debole non è un'ambiguità: proporlo è peggio del silenzio."""
+class TestQuelloCheNonRisolve:
+    """Il tool non traduce e non indovina: fallisce dicendo come riprovare.
 
-    @pytest.mark.parametrize("query", ["maiorca-xyz", "sardegna", "qwertyuiop"])
-    def test_un_match_debole_non_diventa_un_candidato(self, index: CountryIndex, query: str):
+    Non è una limitazione da aggirare, è la divisione del lavoro. Le località e i nomi
+    colloquiali li riconduce al Paese il modello, che li conosce tutti; il tool riconosce
+    l'elenco della fonte, che è l'unica cosa di cui è autorevole.
+    """
+
+    @pytest.mark.parametrize("query", ["Bali", "Phuket", "Tenerife", "Sharm el Sheikh", "olanda"])
+    def test_le_localita_e_i_nomi_colloquiali_non_si_risolvono(self, index: CountryIndex, query: str):
         with pytest.raises(CountryNotFound):
             index.resolve(query)
 
-    def test_ibiza_non_propone_la_libia(self, index: CountryIndex):
-        match = index.resolve("Ibiza")
-        assert match.match is not None
-        assert match.match.iso3 == "ESP", "Ibiza deve risolvere in Spagna, non somigliare a Libia"
+    @pytest.mark.parametrize("refuso", ["tailandia", "giapone", "portogalo", "svizzeraa"])
+    def test_i_refusi_non_si_correggono(self, index: CountryIndex, refuso: str):
+        with pytest.raises(CountryNotFound):
+            index.resolve(refuso)
 
-    @pytest.mark.parametrize(
-        "localita,iso3",
-        [("Sharm el Sheikh", "EGY"), ("Phuket", "THA"), ("Tenerife", "ESP"), ("Bali", "IDN")],
-    )
-    def test_localita_note_al_customer_care(self, index: CountryIndex, localita: str, iso3: str):
-        assert index.resolve(localita).match.iso3 == iso3
+    def test_russia_non_diventa_bielorussia(self, index: CountryIndex):
+        """Il caso che ha motivato il confronto per parola invece che per sottostringa.
 
-    @pytest.mark.parametrize("refuso,iso3", [("tailandia", "THA"), ("giapone", "JPN"),
-                                             ("portogalo", "PRT"), ("svizzeraa", "CHE")])
-    def test_i_refusi_veri_continuano_a_risolvere(self, index: CountryIndex, refuso: str, iso3: str):
-        match = index.resolve(refuso)
-        assert match.match is not None and match.match.iso3 == iso3
+        "russia" è un pezzo di "bielorussia", e con il contenimento generico era l'unica
+        corrispondenza: il tool rispondeva Bielorussia, con sicurezza e in silenzio.
+        """
+        with pytest.raises(CountryNotFound):
+            index.resolve("Russia")
+        assert index.resolve("Federazione Russa").match.iso3 == "RUS"
 
 
 class TestCoperturaCompleta:
@@ -104,23 +105,3 @@ class TestCoperturaCompleta:
             if (m := index.resolve(ref.iso2)).match is None or m.match.iso3 != ref.iso3
         ]
         assert not falliti, f"ISO2 non risolti: {falliti}"
-
-    def test_nessun_alias_punta_a_un_paese_inesistente(self, index: CountryIndex):
-        noti = {ref.iso3 for ref in index.all()}
-        rotti = {alias: iso3 for alias, iso3 in ALIASES.items() if iso3 not in noti}
-        assert not rotti, f"alias verso paesi inesistenti: {rotti}"
-
-    def test_nessun_alias_maschera_il_nome_ufficiale_di_un_altro_paese(self, index: CountryIndex):
-        conflitti = {
-            alias: iso3
-            for alias, iso3 in ALIASES.items()
-            if (altro := next((r for r in index.all() if fold(r.name) == alias), None))
-            and altro.iso3 != iso3
-        }
-        assert not conflitti, f"alias in conflitto con nomi ufficiali: {conflitti}"
-
-    def test_gli_alias_risolvono_tutti(self, index: CountryIndex):
-        for alias, iso3 in ALIASES.items():
-            match = index.resolve(alias)
-            assert match.match is not None, f"alias {alias!r} non risolve"
-            assert match.match.iso3 == iso3, f"alias {alias!r} -> {match.match.iso3}, atteso {iso3}"

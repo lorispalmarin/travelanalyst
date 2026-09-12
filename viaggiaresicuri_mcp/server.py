@@ -77,8 +77,8 @@ async def _resolve(country: str) -> CountryRef:
         match = index.resolve(country)
     except CountryNotFound as exc:
         raise ToolError(
-            f"[{exc.code}] Nessun Paese corrisponde a {country!r}. "
-            "Chiedi all'operatore il nome completo o il codice ISO3."
+            f"[{exc.code}] Nessun Paese corrisponde a {country!r}. Richiama il tool con il nome "
+            "ufficiale italiano del Paese o con il suo codice ISO3."
         ) from exc
 
     if match.match is None:

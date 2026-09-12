@@ -1,8 +1,4 @@
 """Errori del server.
-
-La distinzione che conta è fra "non ho capito la domanda" e "la fonte non risponde":
-i primi sono recuperabili dall'agente, i secondi no. In nessun caso un'eccezione grezza
-della libreria HTTP deve arrivare fino al modello.
 """
 
 from __future__ import annotations

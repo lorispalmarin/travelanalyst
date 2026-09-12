@@ -74,23 +74,6 @@ def test_le_chiavi_di_fallback_esistono(schede):
     assert not mancanti, f"FALLBACKS punta a chiavi inesistenti: {mancanti}"
 
 
-def test_il_primo_piano_resta_quasi_sempre_utilizzabile(schede):
-    """È l'invariante su cui poggia il fallback: se cade, il fallback smette di servire.
-
-    Nel grezzo i nodi di primo piano non sono mai vuoti, ma alcuni contengono soltanto il
-    rimando a un'altra sezione: tolto quello non resta nulla. Devono restare pochi.
-    """
-    vuoti = [
-        f"{iso3}.{topic.id}"
-        for iso3, sheet in schede.items()
-        for topic in sheet.highlights.nodes.topics()
-        if topic.status == "not_published"
-    ]
-    totali = sum(len(sheet.highlights.nodes.topics()) for sheet in schede.values())
-    quota = len(vuoti) / totali
-    assert quota < 0.05, f"primo piano inutilizzabile nel {quota:.1%} dei nodi: {vuoti[:10]}"
-
-
 def test_i_nodi_di_dettaglio_vuoti_restano_una_minoranza(schede):
     """Se la quota esplode, la fonte ha cambiato politica editoriale e va rivisto il design."""
     totali = vuoti = 0

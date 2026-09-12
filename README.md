@@ -32,7 +32,7 @@ L'elenco completo è in [.env.example](.env.example), con il significato di cias
 .venv/bin/travelanalyst              # assistente da riga di comando
 .venv/bin/travelanalyst-web          # stessa cosa via browser, http://127.0.0.1:8000
 .venv/bin/python server.py           # solo il server MCP, su stdio
-make test                            # 226 test offline, nessuna rete
+make test                            # 217 test offline, nessuna rete
 make test-all                        # aggiunge 8 test sulla fonte reale e 2 sul modello
 ```
 
@@ -64,7 +64,7 @@ server.py              shim per i launcher MCP esterni (Claude Desktop, mcp.json
 viaggiaresicuri_mcp/   il server: tool, contratto, normalizzazione, client, cache
     data/              l'indice semantico committato, asset del pacchetto
 assistant/             l'agente LangChain: CLI, UI web, system prompt
-tests/                 226 test offline, 8 sulla fonte reale, 2 sul modello
+tests/                 217 test offline, 8 sulla fonte reale, 2 sul modello (13 casi)
 scripts/               ingest dell'indice
     discovery/         gli script con cui sono state esplorate le fonti
 docs/                  architettura, discovery, decisioni, agente proattivo
@@ -149,7 +149,7 @@ in corso cambiava l'inquadramento della risposta.
 
 | Suite | Comando | Copre | Esito |
 |---|---|---|---|
-| offline | `make test` | 226 test su contratto, normalizzazione, cache, tool, prompt, packaging | verdi |
+| offline | `make test` | 217 test su contratto, normalizzazione, cache, tool, prompt, packaging | verdi |
 | fonte reale | `pytest -m network` | 8 test: tutte le 222 schede validate, invarianti sui campi vuoti | verdi |
 | eval del modello | `pytest -m llm -s` | 12 casi sull'assistente vero + riuso su due turni | 12/12 |
 

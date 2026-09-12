@@ -1,15 +1,4 @@
 """Avvisi recenti: `/ultima_ora/{ISO3}.json`.
-
-Endpoint separato dalla scheda paese, e con contenuto che nella scheda non c'è: per la Thailandia
-le inondazioni del nord non compaiono in nessun nodo.
-
-Sul ritmo vale la pena essere precisi, perché è la misura su cui poggia la scelta del TTL: gli
-avvisi **non** si aggiornano a ore. I `tsModifica` reali li mettono sulla scala delle settimane
-(Ucraina 18/08/2026, Israele 06/05/2026, i sette della Thailandia fra giugno e settembre). Il TTL
-breve non nasce dalla frequenza ma dall'asimmetria del costo d'errore: vedi l'ADR nel README.
-
-`totale.json` non serve qui: è un feed globale troncato a poche decine di elementi, quindi non
-contiene tutti gli avvisi di un singolo Paese. Per Paese fa fede l'endpoint per Paese.
 """
 
 from __future__ import annotations

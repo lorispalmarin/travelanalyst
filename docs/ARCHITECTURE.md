@@ -19,7 +19,7 @@ flowchart TB
         SRV[server.py<br/>11 tool] --> SH[sheet.py<br/>viste sulla scheda]
         SRV --> AL[alerts.py<br/>tre stati]
         SRV --> AP[approfondimenti.py<br/>indice in memoria]
-        SRV --> CO[countries.py<br/>risoluzione + fuzzy]
+        SRV --> CO[countries.py<br/>codice, nome, nome parziale]
         SH & AL & CO --> MO[models.py<br/>contratto Pydantic]
         MO --> NO[normalize.py<br/>HTML → testo, link, see_also]
         SH & AL & CO --> CL[client.py<br/>unico punto di rete]
@@ -77,7 +77,7 @@ con sé la propria provenienza; l'agente decide se chiedere le allerte, non lo f
 
 | Tool | Sorgente | Costo tipico |
 |---|---|---|
-| `find_country(query)` | `lista_nazioni.json` + fuzzy match | trascurabile |
+| `find_country(query)` | `lista_nazioni.json`: codice ISO3 o nome ufficiale | trascurabile |
 | `get_entry_requirements(country, topics?)` | `infoRequisitiIngresso` | ~580 tok |
 | `get_security_info(country, topics?)` | `infoSicurezza`, incluse le normative locali | ~1.330 tok |
 | `get_health_info(country, topics?)` | `infoSituazioneSanitaria` | ~620 tok |
@@ -103,6 +103,16 @@ La **precisione del routing** aumenta: la docstring di ogni tool dice esplicitam
 e cosa no, ed è il solo meccanismo con cui il modello sceglie. La **disambiguazione** avviene
 prima di toccare i dati: `find_country("corea")` non sceglie, restituisce i candidati e lascia
 chiedere all'operatore.
+
+Su questo la risoluzione fa **meno** di quanto sembri necessario, ed è una scelta. Riconosce un
+codice ISO3, un nome dell'elenco, o un nome parziale non ambiguo — e per tutto il resto
+fallisce, chiedendo il nome ufficiale. Non ci sono tabelle di alias né fuzzy matching: le une
+traducevano dall'italiano parlato a quello ufficiale, l'altro perdonava i refusi, e entrambi i
+lavori li fa meglio il modello che chiama il tool. Un fuzzy matcher esiste per gli errori di
+battitura di una persona, e qui non digita nessuna persona. Con la misura a sostegno: nessuna
+soglia separava i refusi veri (`tailandia` → `thailandia`, 95) dai falsi amici (`russia` →
+`bielorussia`, 90), quindi la versione con le soglie rispondeva **Bielorussia** a chi chiedeva
+della Russia.
 
 I due tool sull'indice (`list_country_topics`, `get_country_topics`) sono la via d'uscita per le
 domande che non stanno in nessun tema: mostrano i 28 nodi disponibili a costo basso e poi

@@ -1,22 +1,5 @@
 """Cache persistente dei payload della fonte.
 
-Due funzioni, in ordine di importanza:
-
-1. **Non scaricare un costo su un'infrastruttura pubblica.** Viaggiare Sicuri è un servizio del
-   Ministero degli Affari Esteri: non espone API documentate né un contratto d'uso per client
-   automatici, e i suoi contenuti si muovono sulla scala delle settimane. Un agente che rigenera
-   traffico a ogni tool call non ne ricava nulla e il costo lo paga qualcun altro.
-2. **Continuare a rispondere quando la fonte non risponde.**
-
-La regola che governa tutto: **il TTL è una soglia di rivalidazione, non una scadenza di vita.**
-Una entry scaduta non viene mai cancellata: superato il TTL si *tenta* di rivalidarla, e se il
-tentativo fallisce si serve comunque la copia vecchia, dichiarandola. Non c'è eviction: la
-retention è illimitata per costruzione, non per dimenticanza.
-
-La rivalidazione è condizionale, e per questo ogni riga porta anche `etag` e `last_modified`: si
-chiede alla fonte "è cambiato?" invece di "dammelo". Quando risponde 304 si aggiorna soltanto
-`retrieved_at` — la copia è stata *verificata* adesso, pur essendo stata *scaricata* prima.
-
 Si cacha il corpo grezzo della risposta, sotto il livello di normalizzazione: un cambio di
 parsing non invalida la cache, e ogni riga è un payload della fonte riusabile come fixture.
 """
@@ -46,26 +29,17 @@ CREATE TABLE IF NOT EXISTS payloads (
 )
 """
 
-# I validator sono arrivati dopo, e uno store già sul disco non va buttato per aggiungere due
-# colonne: senza di esse la entry funziona comunque, la prima rivalidazione le riempie.
-COLONNE_AGGIUNTE = ("etag", "last_modified")
-
 
 @dataclass(frozen=True)
 class Entry:
-    """Una risposta della fonte, come è arrivata.
-
-    `retrieved_at` è il momento dell'ultima *verifica*, non necessariamente dello scaricamento:
-    un 304 conferma che il corpo è ancora quello buono e sposta la data della verifica lasciando
-    il contenuto dov'è. `etag` e `last_modified` sono i validator con cui chiedere alla fonte
-    "è cambiato?" senza farsi rimandare il payload.
+    """Una risposta della fonte
     """
 
     url: str
     body: str
-    retrieved_at: datetime
+    retrieved_at: datetime # dall'ultimo update cache
     etag: str | None = None
-    last_modified: str | None = None
+    last_modified: str | None = None # dalla fonte
 
     def age_seconds(self, now: float | None = None) -> int:
         adesso = time.time() if now is None else now
@@ -77,10 +51,6 @@ class Entry:
 
 class Cache:
     """Store SQLite su file. Una connessione per operazione, aperta nel thread che la esegue.
-
-    SQLite e non Redis o diskcache: la cache deve sopravvivere al riavvio del processo (il server
-    MCP viene avviato e fermato dal client a ogni sessione) senza aggiungere un servizio da
-    installare né una dipendenza in più. Il corpus completo della fonte sta sotto i 10 MB.
     """
 
     def __init__(self, path: Path | str) -> None:
@@ -96,11 +66,6 @@ class Cache:
         if not self._preparata:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(SCHEMA)
-            presenti = {riga[1] for riga in conn.execute("PRAGMA table_info(payloads)")}
-            for colonna in COLONNE_AGGIUNTE:
-                if colonna not in presenti:
-                    conn.execute(f"ALTER TABLE payloads ADD COLUMN {colonna} TEXT")
-                    logger.info("cache: aggiunta la colonna %s allo store esistente", colonna)
             conn.commit()
             self._preparata = True
         return conn

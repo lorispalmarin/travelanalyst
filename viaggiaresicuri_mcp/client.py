@@ -1,25 +1,5 @@
-"""Client HTTP verso Viaggiare Sicuri: un solo punto di rete per tutto il server.
-
-Le eccezioni di httpx non escono da qui: vengono tradotte negli errori di `errors.py`,
-così i tool non devono conoscere la libreria di trasporto.
-
-Sopra il trasporto sta la cache (`cache.py`), con una semantica precisa:
-
-    entry presente, età < TTL   -> si serve dalla cache, zero rete            (fresh)
-    entry presente, età >= TTL  -> si rivalida in modo condizionale
-                                     304 -> il corpo resta, si sposta la data (fresh)
-                                     200 -> si aggiorna e si serve            (fresh)
-                                     fonte giù -> si serve la copia vecchia   (stale)
-    entry assente,  refetch fallito -> errore esplicito, nessun ripiego
-
-Superata la soglia non si riscarica il payload: si manda `If-None-Match` (o `If-Modified-Since`)
-e si lascia decidere alla fonte. Un `304` costa un round trip e zero byte, e la fonte lo chiede
-esplicitamente — `cache-control: public, max-age=0` più ETag significa "rivalida, non
-riscaricare".
-
-Il terzo caso è il solo in cui l'assistente non può rispondere, ed è giusto così: l'alternativa
-sarebbe lasciare che il modello risponda a memoria su requisiti di ingresso e rischi di
-sicurezza, che è esattamente quello che questo progetto esiste per impedire.
+"""
+Client HTTP verso Viaggiare Sicuri
 """
 
 from __future__ import annotations
@@ -59,10 +39,8 @@ _in_volo: dict[str, asyncio.Lock] = {}
 @dataclass(frozen=True)
 class Risposta:
     """Come è andata la richiesta alla fonte.
-
-    Due esiti, e li decide la fonte: `modificato=True` con un corpo nuovo, oppure un 304 che
-    conferma la copia che abbiamo già. Nel secondo caso `body` e `payload` sono `None`, perché
-    la fonte non ci ha rimandato niente — è esattamente il punto.
+    Esito: `modificato=True` con un corpo nuovo, oppure un 304 che
+    conferma la copia che abbiamo già.
     """
 
     modificato: bool
@@ -74,7 +52,7 @@ class Risposta:
 
 @dataclass(frozen=True)
 class Fetched:
-    """Un payload più la sua provenienza. Chi lo riceve non deve indovinare quanto è vecchio."""
+    """Un payload più la sua provenienza"""
 
     payload: Any
     retrieved_at: datetime
@@ -215,9 +193,8 @@ async def fetch(path: str, ttl_seconds: int | None = None) -> Fetched:
         return Fetched(payload, datetime.now(UTC), "fresh", 0)
 
     url = url_for(path)
-    # Una sola richiesta in volo per URL: due tool chiamati in parallelo sullo stesso Paese
-    # leggono la stessa scheda, e duplicare la richiesta verso una fonte pubblica è gratuito
-    # solo per noi.
+
+    # creiamo un ucchetto per non mandare due richieste allo stesso url nello stesso momento
     lucchetto = _in_volo.setdefault(url, asyncio.Lock())
     async with lucchetto:
         cache = get_cache()
@@ -231,10 +208,7 @@ async def fetch(path: str, ttl_seconds: int | None = None) -> Fetched:
         try:
             risposta = await _scarica(path, _condizionali(entry))
         except SourceUnavailable as exc:
-            # La fonte non risponde. Se abbiamo una copia la serviamo comunque, qualunque sia la
-            # sua età: nessuna eviction l'ha rimossa proprio per questo momento. 404 e payload
-            # non-JSON invece passano: sono la fonte che *risponde*, e coprirli con una copia
-            # vecchia nasconderebbe un cambio di contratto.
+            # La fonte non risponde. Se abbiamo una copia la serviamo comunque
             if entry is None:
                 raise
             logger.warning(
@@ -244,9 +218,7 @@ async def fetch(path: str, ttl_seconds: int | None = None) -> Fetched:
             return _da_entry(entry, "stale")
 
         if not risposta.modificato:
-            # 304: il contenuto che abbiamo è ancora quello buono. Si sposta il momento della
-            # verifica, non il contenuto — `retrieved_at` dice "confermato adesso", mentre la
-            # data della fonte (`updateDate`, esposta come `last_updated`) resta quella che è.
+            # 304: il contenuto che abbiamo è ancora quello buono
             confermata = await cache.conferma(
                 url, etag=risposta.etag, last_modified=risposta.last_modified
             )

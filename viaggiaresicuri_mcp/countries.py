@@ -1,10 +1,15 @@
-"""Risoluzione del paese: da quello che scrive l'operatore al codice ISO3 usato dagli endpoint.
+"""Risoluzione del paese: dal nome al codice ISO3 usato dagli endpoint.
 
-La fonte usa nomi ufficiali italiani, che spesso non contengono il nome comune: la Cina è
-"Repubblica Popolare Cinese" e la Russia "Federazione Russa". Il fuzzy matching da solo non
-basta, quindi c'è una tabella di alias per i casi dove italiano, inglese e parlato divergono.
+I nomi dell'elenco della fonte sono già quelli ufficiali italiani (`Paesi Bassi`,
+`Federazione Russa`, `Repubblica Popolare Cinese`), cioè quelli che il modello produce da sé.
+Qui quindi non si traduce e non si indovina: si riconosce un codice, un nome, o un nome parziale
+non ambiguo. Tutto il resto è un errore che dice come riprovare.
 
-Quando la richiesta è ambigua non si indovina: si restituiscono i candidati.
+Non c'è fuzzy matching di proposito: serve a perdonare i refusi di un umano, e in questi tool
+non scrive nessun umano — scrive il modello, che i refusi non li fa e che le località ("Bali",
+"Phuket") sa già ricondurre al Paese prima di chiamare.
+
+Quando la richiesta è ambigua non si sceglie: si restituiscono i candidati.
 """
 
 from __future__ import annotations
@@ -13,53 +18,14 @@ import asyncio
 import re
 import unicodedata
 
-from rapidfuzz import fuzz, process
-
 from .config import countries_path
 from .errors import CountryNotFound, UnexpectedPayload
 from .client import fetch
 from .models import CountryMatch, CountryRef
 
-# Alias -> ISO3. Coperti i casi dove il nome della fonte non contiene il nome comune,
-# le forme inglesi che il fuzzy sbaglierebbe, e il parlato del customer care.
-ALIASES: dict[str, str] = {
-    "usa": "USA", "stati uniti": "USA", "united states": "USA",
-    "united states of america": "USA", "america": "USA",
-    "uk": "GBR", "united kingdom": "GBR", "gran bretagna": "GBR",
-    "inghilterra": "GBR", "england": "GBR", "britain": "GBR",
-    "cina": "CHN", "china": "CHN",
-    "russia": "RUS",
-    "olanda": "NLD", "holland": "NLD", "netherlands": "NLD",
-    "corea del sud": "KOR", "south korea": "KOR",
-    "corea del nord": "PRK", "north korea": "PRK",
-    "japan": "JPN", "germany": "DEU", "spain": "ESP", "france": "FRA",
-    "switzerland": "CHE", "sweden": "SWE", "norway": "NOR", "denmark": "DNK",
-    "poland": "POL", "hungary": "HUN", "greece": "GRC", "egypt": "EGY",
-    "portugal": "PRT", "belgium": "BEL", "ireland": "IRL", "iceland": "ISL",
-    "croatia": "HRV", "turkey": "TUR", "turkiye": "TUR", "ukraine": "UKR",
-    "israel": "ISR", "morocco": "MAR", "brazil": "BRA", "mexico": "MEX",
-    "thailand": "THA", "new zealand": "NZL", "cambodia": "KHM", "maldives": "MDV",
-    "sudafrica": "ZAF", "south africa": "ZAF",
-    "saudi arabia": "SAU", "arabia saudita": "SAU",
-    "repubblica ceca": "CZE", "czech republic": "CZE", "czechia": "CZE", "cechia": "CZE",
-    "costa d avorio": "CIV", "ivory coast": "CIV",
-    "emirati": "ARE", "emirati arabi": "ARE", "uae": "ARE", "dubai": "ARE", "abu dhabi": "ARE",
-    "birmania": "MMR", "burma": "MMR",
-    "dominican republic": "DOM", "cape verde": "CPV",
-    # Località e isole che l'operatore nomina al posto del Paese. Senza queste, "Ibiza"
-    # finirebbe sul fuzzy e il candidato più vicino sarebbe la Libia.
-    "bali": "IDN", "zanzibar": "TZA",
-    "ibiza": "ESP", "maiorca": "ESP", "majorca": "ESP", "minorca": "ESP",
-    "baleari": "ESP", "canarie": "ESP", "tenerife": "ESP", "fuerteventura": "ESP",
-    "lanzarote": "ESP", "gran canaria": "ESP",
-    "madeira": "PRT", "azzorre": "PRT",
-    "creta": "GRC", "rodi": "GRC", "santorini": "GRC", "mykonos": "GRC", "corfu": "GRC",
-    "sharm el sheikh": "EGY", "hurghada": "EGY", "marsa alam": "EGY",
-    "phuket": "THA", "koh samui": "THA", "bangkok": "THA",
-    "marrakech": "MAR", "sharm": "EGY",
-    "new york": "USA", "miami": "USA", "california": "USA",
-    "londra": "GBR", "parigi": "FRA", "barcellona": "ESP", "madrid": "ESP",
-}
+
+def _contiene_parola(nome: str, pezzo: str) -> bool:
+    return re.search(rf"\b{re.escape(pezzo)}\b", nome) is not None
 
 
 def fold(text: str) -> str:
@@ -96,34 +62,23 @@ class CountryIndex:
             return CountryMatch(match=self._by_iso3[raw.upper()], confidence="exact")
         if len(raw) == 2 and raw.upper() in self._by_iso2:
             return CountryMatch(match=self._by_iso2[raw.upper()], confidence="exact")
-        if folded in ALIASES:
-            return CountryMatch(match=self._by_iso3[ALIASES[folded]], confidence="alias")
         if folded in self._folded:
             return CountryMatch(match=self._folded[folded], confidence="exact")
 
-        contained = [ref for name, ref in self._folded.items() if folded in name]
-        if len(contained) == 1:
-            return CountryMatch(match=contained[0], confidence="alias")
-        if len(contained) > 1:
-            return CountryMatch(candidates=contained[:8])
+        # Nome parziale: "Stati Uniti" per "Stati Uniti d'America", "corea" per le due Coree.
+        # Il confronto è per parola intera e non per sottostringa, altrimenti "russia" finirebbe
+        # dentro "bielorussia" — con una sola corrispondenza, quindi senza nemmeno l'ambiguità
+        # a salvare la risposta.
+        parziali = [ref for nome, ref in self._folded.items() if _contiene_parola(nome, folded)]
+        if len(parziali) == 1:
+            return CountryMatch(match=parziali[0], confidence="partial")
+        if len(parziali) > 1:
+            return CountryMatch(candidates=parziali[:8])
 
-        scored = process.extract(folded, self._names, scorer=fuzz.WRatio, limit=5)
-        if not scored:
-            raise CountryNotFound(query)
-
-        best_name, best_score, _ = scored[0]
-        runner_up = scored[1][1] if len(scored) > 1 else 0
-        if best_score >= 90 and best_score - runner_up >= 8:
-            return CountryMatch(match=self._folded[best_name], confidence="fuzzy")
-
-        # Un solo candidato debole non è un'ambiguità, è un match che non regge: proporlo
-        # sarebbe peggio del silenzio. "Ibiza" assomiglia a "Libia" all'80%, e suggerire la
-        # Libia a chi parte per le Baleari non è un errore neutro. I refusi veri stanno sopra 90
-        # con distacco netto (tailandia/thailandia = 95).
-        plausibili = [self._folded[name] for name, score, _ in scored if score >= 85]
-        if len(plausibili) < 2:
-            raise CountryNotFound(query)
-        return CountryMatch(candidates=plausibili)
+        # Nessun suggerimento "più simile": lo avevo provato e proponeva Bielorussia per
+        # "Russia", cioè l'errore che questo modulo esiste per non fare. Chi chiama il nome
+        # ufficiale lo conosce già, basta chiederglielo.
+        raise CountryNotFound(query)
 
 
 _index: CountryIndex | None = None

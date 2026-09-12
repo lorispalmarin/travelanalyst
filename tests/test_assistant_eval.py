@@ -121,6 +121,14 @@ CASI = [
         tool_attesi={"get_entry_requirements"},
     ),
     Caso(
+        # La divisione del lavoro: i tool conoscono l'elenco della fonte, il modello la
+        # geografia. "Bali" non risolve nel tool, e non deve: va ricondotta all'Indonesia.
+        nome="località invece del Paese",
+        domanda="Un cliente parte per Bali. Che vaccinazioni sono obbligatorie?",
+        tool_attesi={"get_health_info"},
+        deve_contenere=("Indonesia",),
+    ),
+    Caso(
         # L'altro lato della regola 7: una domanda puntuale che un avviso non sposterebbe non
         # deve pagare una chiamata in più. È il caso che misura che il controllo sia una scelta.
         nome="guidare in Marocco",

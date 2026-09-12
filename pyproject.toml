@@ -7,7 +7,6 @@ dependencies = [
     "pydantic>=2.7",
     "fastmcp>=4,<5",  # 4.x richiede mcp>=2: vedi nota in assistant/mcp_tools.py
     "httpx>=0.27",
-    "rapidfuzz>=3",
     "numpy>=1.26",   # l'indice semantico è una matrice in memoria, non un vector database
     "openai>=1.40",  # embedding delle query; il resto del modello passa da langchain-openai
     "langchain>=1.0",

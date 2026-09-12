@@ -6,7 +6,7 @@ from viaggiaresicuri_mcp.normalize import (
     extract_links,
     html_to_text,
     link_kind,
-    split_see_also,
+    find_see_also,
 )
 
 
@@ -52,45 +52,50 @@ class TestExtractLinks:
         assert link_kind(url) == atteso
 
 
-class TestSplitSeeAlso:
-    def test_estrae_il_rimando_e_lo_toglie_dal_testo(self):
+class TestSeeAlso:
+    """I rimandi si estraggono, non si rimuovono: il testo resta quello della fonte."""
+
+    def test_estrae_il_rimando_lasciando_il_testo_intatto(self):
         testo = (
             "Si raccomanda di adottare le normali precauzioni. "
             "Per maggiori informazioni, consultare la Sezione “Sicurezza” di questa Scheda."
         )
-        pulito, refs = split_see_also(testo)
-        assert refs == ["security"]
-        assert "consultare" not in pulito
-        assert pulito.startswith("Si raccomanda")
+        assert find_see_also(testo) == ["security"]
 
     def test_riconosce_piu_sezioni(self):
         testo = "Consultare la sezione Situazione Sanitaria e la sezione Requisiti di ingresso di questa Scheda."
-        pulito, refs = split_see_also(testo)
-        assert set(refs) == {"health", "entry"}
-        assert pulito == ""
+        assert set(find_see_also(testo)) == {"health", "entry"}
 
-    def test_non_tocca_le_frasi_senza_rimando(self):
-        testo = "Si raccomanda di consultare il proprio medico prima della partenza."
-        pulito, refs = split_see_also(testo)
-        assert refs == []
-        assert pulito == testo
+    def test_nessun_rimando_nessun_riferimento(self):
+        assert find_see_also("Si raccomanda di consultare il proprio medico prima della partenza.") == []
 
-    def test_un_nodo_fatto_solo_di_rimando_resta_vuoto(self):
-        # caso Thailandia: il nodo di primo piano è solo un puntatore
-        testo = (
-            "Nel Paese sono presenti alcune aree che richiedono una particolare cautela. "
-            "Si raccomanda di consultare attentamente la Sezione “Sicurezza” di questa Scheda."
-        )
-        pulito, refs = split_see_also(testo)
-        assert refs == ["security"]
-        assert "Sezione" not in pulito
+    def test_un_nodo_fatto_solo_di_rimando_resta_comunque_compilato(self):
+        """Gabon: la fonte dice solo "consultare la Sezione Requisiti di Ingresso".
+
+        Il nodo resta `available` con quel testo e un `see_also` che dice all'agente dove
+        andare. Prima diventava vuoto, cioè si buttava l'unica cosa che la fonte aveva scritto.
+        """
+        testo = 'Consultare la Sezione "Requisiti di Ingresso" di questa Scheda.'
+        assert find_see_also(testo) == ["entry"]
 
     def test_testo_vuoto(self):
-        assert split_see_also("") == ("", [])
+        assert find_see_also("") == []
+
+    def test_sezione_sicurezza_aerea_non_e_la_sezione_sicurezza(self):
+        # Aruba: è l'approfondimento curato con ENAC, una risorsa esterna
+        testo = (
+            'Si invita a consultare la Sezione "Sicurezza aerea" curata con ENAC, oltre al '
+            "sito della Commissione Europea."
+        )
+        assert find_see_also(testo) == []
+
+    def test_rinvio_a_risorsa_esterna_non_e_un_see_also(self):
+        testo = "Viaggiatori con animali domestici: consultare il sito dell'Ambasciata a Brasilia."
+        assert find_see_also(testo) == []
 
 
 class TestIntegritaDelTesto:
-    """Il punto non è sempre fine frase: dentro numeri, URL ed email va lasciato stare."""
+    """Il testo della fonte arriva all'operatore come è scritto, HTML a parte."""
 
     @pytest.mark.parametrize(
         "testo",
@@ -102,48 +107,26 @@ class TestIntegritaDelTesto:
         ],
     )
     def test_il_testo_non_viene_alterato(self, testo: str):
-        pulito, _ = split_see_also(testo)
-        assert pulito == testo
+        assert html_to_text(f"<p>{testo}</p>") == testo
 
 
 class TestRimandiMistiAContenuto:
-    """Una frase che contiene un rimando ma anche una risposta non si butta via."""
+    """Una frase che contiene un rimando porta spesso anche la risposta: sta tutto nel testo."""
 
-    def test_conserva_il_contenuto_accanto_al_rimando(self):
+    def test_il_contenuto_accanto_al_rimando_resta_e_il_riferimento_si_estrae(self):
         # Lituania: la risposta è "Passaporto oppure CIE"
         testo = (
             "Passaporto oppure CIE (https://www.viaggiaresicuri.it/approfondimenti-insights/"
             "documentidiviaggio): consultare la Sezione “Requisiti di Ingresso” di questa Scheda."
         )
-        pulito, refs = split_see_also(testo)
-        assert "Passaporto oppure CIE" in pulito
-        assert refs == ["entry"]
+        assert find_see_also(testo) == ["entry"]
+        assert html_to_text(f"<p>{testo}</p>") == testo
 
-    def test_conserva_la_risposta_anche_senza_spazio_dopo_il_punto(self):
-        # Regno Unito: "Nessuna" è la risposta sulle vaccinazioni obbligatorie,
-        # e la fonte scrive "Scheda.Per" attaccato
+    def test_riconosce_il_rimando_anche_senza_spazio_dopo_il_punto(self):
+        # Regno Unito: la fonte scrive "Scheda.Per" attaccato
         testo = (
             "Nessuna: per informazioni sulle malattie presenti, consultare la Sezione "
             "“Situazione Sanitaria” di questa Scheda.Per ulteriori indicazioni si raccomanda "
             "di consultare il proprio medico."
         )
-        pulito, refs = split_see_also(testo)
-        assert pulito.startswith("Nessuna")
-        assert "proprio medico" in pulito
-        assert refs == ["health"]
-
-    def test_sezione_sicurezza_aerea_non_e_la_sezione_sicurezza(self):
-        # Aruba: è l'approfondimento curato con ENAC, una risorsa esterna
-        testo = (
-            'Si invita a consultare la Sezione "Sicurezza aerea" curata con ENAC, oltre al '
-            "sito della Commissione Europea."
-        )
-        pulito, refs = split_see_also(testo)
-        assert refs == []
-        assert pulito == testo
-
-    def test_rinvio_a_risorsa_esterna_resta_nel_testo(self):
-        testo = "Viaggiatori con animali domestici: consultare il sito dell'Ambasciata a Brasilia."
-        pulito, refs = split_see_also(testo)
-        assert pulito == testo
-        assert refs == []
+        assert find_see_also(testo) == ["health"]
