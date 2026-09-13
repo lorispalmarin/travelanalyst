@@ -1,14 +1,4 @@
 """Risoluzione del paese: dal nome al codice ISO3 usato dagli endpoint.
-
-I nomi dell'elenco della fonte sono già quelli ufficiali italiani (`Paesi Bassi`,
-`Federazione Russa`, `Repubblica Popolare Cinese`), cioè quelli che il modello produce da sé.
-Qui quindi non si traduce e non si indovina: si riconosce un codice, un nome, o un nome parziale
-non ambiguo. Tutto il resto è un errore che dice come riprovare.
-
-Non c'è fuzzy matching di proposito: serve a perdonare i refusi di un umano, e in questi tool
-non scrive nessun umano — scrive il modello, che i refusi non li fa e che le località ("Bali",
-"Phuket") sa già ricondurre al Paese prima di chiamare.
-
 Quando la richiesta è ambigua non si sceglie: si restituiscono i candidati.
 """
 
@@ -65,19 +55,12 @@ class CountryIndex:
         if folded in self._folded:
             return CountryMatch(match=self._folded[folded], confidence="exact")
 
-        # Nome parziale: "Stati Uniti" per "Stati Uniti d'America", "corea" per le due Coree.
-        # Il confronto è per parola intera e non per sottostringa, altrimenti "russia" finirebbe
-        # dentro "bielorussia" — con una sola corrispondenza, quindi senza nemmeno l'ambiguità
-        # a salvare la risposta.
         parziali = [ref for nome, ref in self._folded.items() if _contiene_parola(nome, folded)]
         if len(parziali) == 1:
             return CountryMatch(match=parziali[0], confidence="partial")
         if len(parziali) > 1:
             return CountryMatch(candidates=parziali[:8])
 
-        # Nessun suggerimento "più simile": lo avevo provato e proponeva Bielorussia per
-        # "Russia", cioè l'errore che questo modulo esiste per non fare. Chi chiama il nome
-        # ufficiale lo conosce già, basta chiederglielo.
         raise CountryNotFound(query)
 
 

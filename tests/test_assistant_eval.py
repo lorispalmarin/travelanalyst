@@ -21,15 +21,7 @@ from assistant.agent import apri_assistente
 pytestmark = pytest.mark.llm
 
 
-@pytest.fixture(autouse=True)
-def cache_accesa(monkeypatch):
-    """La eval usa la cache, al contrario del resto della suite.
-
-    `conftest.py` spegne la cache per i test offline, e quella variabile viene ereditata dal
-    sottoprocesso MCP: senza questo, ogni rilancio della eval rigenererebbe una cinquantina di
-    richieste verso viaggiaresicuri.it. È esattamente il traffico che la cache esiste per evitare.
-    """
-    monkeypatch.setenv("VS_CACHE_ENABLED", "true")
+# Le eval richiedono un server MCP HTTP già avviato con la propria cache abilitata.
 
 VIETATE = ("nessun rischio", "nessun pericolo", "tutto tranquillo", "non c'è alcun rischio")
 

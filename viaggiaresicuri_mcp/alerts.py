@@ -1,4 +1,5 @@
-"""Avvisi recenti: `/ultima_ora/{ISO3}.json`.
+"""
+Avvisi recenti: `/ultima_ora/{ISO3}.json`.
 """
 
 from __future__ import annotations

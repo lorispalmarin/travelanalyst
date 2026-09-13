@@ -63,3 +63,13 @@ def albania(albania_payload: dict) -> CountrySheet:
 @pytest.fixture
 def austria(austria_payload: dict) -> CountrySheet:
     return CountrySheet.model_validate(austria_payload)
+
+
+# Server e assistente usano versioni diverse dell'SDK MCP, in ambienti separati.
+from importlib.util import find_spec
+
+collect_ignore = []
+if find_spec("langchain_mcp_adapters") is None:
+    collect_ignore += ["test_assistant.py", "test_assistant_eval.py", "test_mcp_http.py"]
+if find_spec("fastmcp") is None:
+    collect_ignore += ["test_server.py", "test_cache.py"]

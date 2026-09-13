@@ -92,8 +92,8 @@ endpoint, e serve un modello unico a valle.
 
 **Gli approfondimenti si smentiscono da soli.** Il payload di `saluteinviaggio.json` (216 KB,
 quattro sezioni sulla salute) dichiara al primo livello `nome: "Preparare un viaggio"` — lo stesso
-titolo di `preparaunviaggio.json`, che è un altro documento da 12 KB. I titoli dei documenti,
-nell'indice semantico, sono quindi una mappa nostra, non un campo della fonte. E gli `id` delle
+titolo di `preparaunviaggio.json`, che è un altro documento da 12 KB. Chi volesse esporli dovrebbe
+quindi dare i titoli per conto proprio, perché quello della fonte è sbagliato. E gli `id` delle
 sezioni contengono refusi di redazione che vanno accettati come sono: `pacchittituristici`,
 `prepareraunafarmacia`, `restituzionecarateidenta`.
 

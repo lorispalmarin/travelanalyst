@@ -11,32 +11,46 @@ stata la mappatura più diretta, ma la scheda intera pesa in mediana ~4.600 toke
 
 **Decisione.** Un solo contratto Pydantic per la scheda, e tool che ne restituiscono **viste**
 per sezione: requisiti d'ingresso, sicurezza, salute, mobilità, ambasciate, informazioni
-pratiche. Più due tool sull'indice dei 28 nodi per le domande che non stanno in nessun tema. Il
-taglio si ferma alla sezione: una sezione costa poche centinaia di token, e dentro
+pratiche. Il taglio si ferma alla sezione: una sezione costa poche centinaia di token, e dentro
 `infoRequisitiIngresso` il modello distingue benissimo passaporto e visto.
 
 **Conseguenze.** Il contesto resta pulito anche su conversazioni che toccano due Paesi. Il routing
 diventa una proprietà delle docstring, che vanno scritte come istruzioni operative e non come
-descrizioni. In cambio ci sono 11 tool da tenere coerenti invece di 3, e ogni nuova sezione della
+descrizioni. In cambio ci sono 8 tool da tenere coerenti invece di 3, e ogni nuova sezione della
 fonte richiede una scelta esplicita su dove esporla.
 
-## 2. Deterministico sulle schede, semantico solo sugli approfondimenti
+## 2. Nessun RAG: il contenuto ha già le chiavi
 
-**Contesto.** Entrambe le fonti sono JSON. La tentazione è trattarle allo stesso modo, in un verso
-(tutto RAG) o nell'altro (tutto chiavi).
+**Contesto.** Oltre alle schede paese la fonte pubblica due guide tematiche, "Salute in viaggio" e
+"Documenti di viaggio" (230 KB in totale). Sono l'unico contenuto non indicizzato per Paese, e la
+mossa istintiva è metterci sopra una ricerca semantica — anche perché la traccia mette a
+disposizione `text-embedding-3-large`.
 
-**Decisione.** Le schede paese si interrogano per chiave: Paese × sezione. Gli approfondimenti
-passano da un indice semantico. **La regola non è il formato, è la forma del contenuto e il suo
-volume.** Le schede sono già indicizzate sugli stessi assi su cui arrivano le domande — c'è una
-chiave per "Paese" e una per "requisiti d'ingresso" — quindi un embedding non aggiungerebbe nulla
-e toglierebbe determinismo: 222 documenti, struttura identica, risposta esatta. Gli approfondimenti
-sono due documenti di prosa, 230 KB, dove la risposta a "cosa faccio se perdo il passaporto" sta
-in un paragrafo che non ha una chiave.
+**Decisione.** Nessun retrieval semantico, da nessuna parte. Le schede paese si interrogano per
+chiave (Paese × sezione); le due guide, per ora, restano fuori dalle fonti dell'assistente.
 
-**Conseguenze.** Il grosso delle risposte è riproducibile e verificabile riga per riga. Il RAG
-esiste dove serve e resta piccolo: 124 chunk in una matrice numpy, nessun vector database. Il
-prezzo è che ci sono due modalità di accesso da spiegare, e che il routing fra le due va imposto
-nelle docstring e verificato sull'agente vero — cosa che la eval fa.
+**Perché, con la misura.** L'indice semantico era stato costruito — 124 chunk, matrice numpy,
+coseno — e poi ho misurato la forma del corpus invece di assumerla: **52 sezioni foglia con un
+nome parlante**, di cui 70 chunk su 124 sotto "Malattie del viaggiatore", una voce per malattia:
+`Dengue`, `Zika Virus`, `Rabbia`, `Furto o smarrimento di documenti`. Non è prosa in cui la
+risposta si nasconde in un paragrafo senza chiave: è **un catalogo con un sommario**. E un
+sommario di 52 voci costa ~876 token, cioè si può leggere per intero.
+
+Quindi l'embedding stava risolvendo un problema di ricerca che quel contenuto non ha. Il segnale
+che confermava la diagnosi era già nei risultati: per "smarrimento del passaporto" il chunk giusto
+arrivava **secondo**, battuto da "Restituzione di carte identità italiane rinvenute all'estero" —
+un errore impossibile scegliendo per nome di sezione.
+
+**Conseguenze.** Sono spariti l'indice, lo script di ingestion, due dipendenze (`numpy` e il
+client `openai`), un artefatto binario committato da 1,2 MB, il passaggio `make ingest` e il
+limite "l'indice è uno snapshot". Il server MCP ora non riceve **nessuna** credenziale di modello,
+nemmeno di embedding: legge una fonte pubblica e basta.
+
+Il prezzo è dichiarato: l'assistente non risponde più a domande generali che non nominano un Paese
+("come si rinnova il passaporto", "che cos'è la dengue"). Il prompt glielo fa dire invece di
+lasciarlo rispondere a memoria. La sostituzione — due tool `list`/`get` sulle 52 sezioni, come
+quelli che già esistono per i 28 nodi della scheda paese — è la prima voce di "cosa farei con più
+tempo" nel README: è semplice, ma non è stata scritta e non la spaccio per fatta.
 
 ## 3. Un TTL solo, ma la rivalidazione è condizionale
 
@@ -131,19 +145,12 @@ modello parafrasi male ciò che riceve, ed è esattamente ciò che la eval verif
 
 Elencato qui perché "non c'è" e "non ci ho pensato" sono due cose diverse.
 
-- **Vector database** (Chroma, Qdrant, FAISS, pgvector): 124 chunk stanno in una matrice numpy da
-  1,2 MB. Un servizio in più non avrebbe comprato niente.
-- **BM25, ricerca ibrida, reciprocal rank fusion**: è l'unica voce di questa lista con una prova a
-  favore. Per "smarrimento del passaporto" il chunk giusto arriva **secondo**, battuto da quello
-  sulla restituzione di documenti rinvenuti all'estero: un segnale lessicale lo rimetterebbe primo.
-  Prima però serve un set di query con recall misurato, altrimenti si ottimizza su un aneddoto.
-- **Reranking, cross-encoder, LLM-as-judge sui risultati**: costo per query su un corpus dove il
-  primo risultato è quasi sempre giusto.
-- **Query rewriting, HyDE, query expansion**: le domande arrivano da operatori e sono già
-  specifiche.
-- **LlamaIndex, retriever LangChain**: l'intera ricerca è `matrice @ vettore` più un `argsort`.
-- **Chunking a finestra scorrevole con overlap**: l'albero delle sezioni dà già confini semantici
-  veri, e il breadcrumb li rende leggibili nella risposta.
+- **Tutto l'armamentario del retrieval** — vector database, BM25 e ricerca ibrida, reranking,
+  query rewriting, LlamaIndex — è caduto insieme al RAG (ADR 2). Vale la pena dire perché non l'ho
+  aggiunto *prima* di rimuoverlo: il difetto misurato ("smarrimento del passaporto" al secondo
+  posto) chiedeva un segnale lessicale, ma senza un recall misurato sarebbe stato ottimizzare su
+  un aneddoto. Misurando invece il corpus è venuto fuori che non serviva il retrieval, non che
+  servisse migliore.
 - **Parsing dei PDF**: misurata una sovrapposizione del 91–93% con il JSON. Si esporrebbero come
   URL comunque, che è anche il loro uso reale.
 - **Classificazione di severità con LLM, deduplica, notifiche, scheduling**: appartengono

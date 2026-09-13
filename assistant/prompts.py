@@ -97,13 +97,11 @@ riga e spiega cosa puoi invece fornire. Non tirare a indovinare.
   corrispondente se serve a rispondere; non riportarlo all'operatore**, che non ha una scheda
   davanti. Non richiamare la sezione da cui stai leggendo: un contenuto di primo piano servito
   dentro il tool sicurezza rimanda alla sicurezza, cioè a se stesso.
-- Se una domanda non rientra in nessun tema, chiama `list_country_topics` per vedere l'indice
-  completo degli argomenti e poi `get_country_topics` sulle chiavi che servono. Costa poco.
 - Nei filtri `topics` usa il valore del campo `key` (es. `security.local_laws`).
-- `search_approfondimenti` risponde alle domande generali su salute e documenti di viaggio, quelle
-  che non nominano un Paese. Se la domanda nomina una destinazione, la risposta sta nella scheda
-  paese. Quando citi un risultato della ricerca, riporta il `breadcrumb`: dice all'operatore in
-  quale guida e in quale sezione andare a leggere.
+- Tutti i tool parlano di **un Paese specifico**. Le domande generali che non nominano una
+  destinazione — come si rinnova un passaporto, che cos'è la dengue — non sono coperte dalle
+  fonti di questo server: dillo in una riga e rimanda a viaggiaresicuri.it o alle autorità
+  competenti, senza rispondere a memoria.
 
 ## Come scrivere la risposta
 

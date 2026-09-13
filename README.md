@@ -11,7 +11,9 @@ le fonti sono endpoint pubblici.
 ```bash
 git clone <repo> && cd travelanalyst
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pip install -e ".[server,dev]"
+python3.12 -m venv .venv-assistant
+.venv-assistant/bin/python -m pip install -e ".[assistant,dev]"
 cp .env.example .env        # e compila OPENAI_API_KEY
 ```
 
@@ -22,51 +24,90 @@ Nel `.env` una sola variabile è obbligatoria, e serve all'assistente, non al se
 | `OPENAI_API_KEY` | — | **obbligatoria** per l'assistente |
 | `OPENAI_MODEL` | `gpt-5.6-luna` | modello di chat |
 | `OPENAI_BASE_URL` | vuoto (OpenAI) | endpoint alternativo, es. quello Azure |
-| `EMBEDDING_API_KEY` | `OPENAI_API_KEY` | vettorizza le query di ricerca |
+| `MCP_SERVER_URL` | `http://127.0.0.1:8001/mcp` | server MCP a cui si collega l’assistente |
 | `VS_CACHE_TTL_SECONDS` | `21600` (6 h) | soglia di rivalidazione della cache |
 | `VS_ALERTS_TTL_SECONDS` | `900` (15 min) | la stessa soglia, per i soli avvisi |
 
 L'elenco completo è in [.env.example](.env.example), con il significato di ciascuna.
 
+Avvia prima il server MCP in un terminale e lascialo in esecuzione:
+
 ```bash
-.venv/bin/travelanalyst              # assistente da riga di comando
-.venv/bin/travelanalyst-web          # stessa cosa via browser, http://127.0.0.1:8000
-.venv/bin/python server.py           # solo il server MCP, su stdio
-make test                            # 217 test offline, nessuna rete
-make test-all                        # aggiunge 8 test sulla fonte reale e 2 sul modello
+.venv/bin/python server.py           # MCP HTTP: http://127.0.0.1:8001/mcp
 ```
 
-L'indice della ricerca semantica è committato in `viaggiaresicuri_mcp/data/`, quindi il server
-parte già completo di tutti e 11 i tool: `make ingest` serve solo a ricostruirlo, e richiede una
-chiave di embedding.
+In un altro terminale avvia una delle interfacce:
+
+```bash
+.venv-assistant/bin/travelanalyst              # assistente da riga di comando
+.venv-assistant/bin/travelanalyst-web          # browser: http://127.0.0.1:8000
+```
+
+L'assistente apre una connessione al server già avviato; chiudendolo il server resta acceso.
+`MCP_HOST` e `MCP_PORT` configurano il server, `MCP_SERVER_URL` configura il client.
+Entrambi leggono `.env` in sviluppo; le variabili `VS_*` devono essere impostate sul server.
+
+I due ambienti sono separati: FastMCP 4 usa MCP 2, mentre `langchain-mcp-adapters`
+usa MCP 1. Comunicano tramite HTTP; non installare gli extra `server` e `assistant`
+nello stesso ambiente. `mcp_tools.py` usa [l'adapter LangChain](https://github.com/langchain-ai/langchain-mcp-adapters)
+per caricare i tool senza conversioni manuali.
+
+```bash
+# Suite server e modelli condivisi
+.venv/bin/python -m pytest -q -m "not network and not llm"
+# Suite assistente e integrazione HTTP (avvia un server di test con fixture locali)
+.venv-assistant/bin/python -m pytest -q tests/test_assistant.py tests/test_mcp_http.py tests/test_packaging.py
+# Test sulla fonte reale
+.venv/bin/python -m pytest -m network
+# Eval: richiedono server HTTP già avviato e credenziali del modello
+.venv-assistant/bin/python -m pytest tests/test_assistant_eval.py -m llm -s
+```
+
+La raccolta dei test esclude le suite del componente non installato nell'ambiente.
+Il test HTTP usa `.venv/bin/python` per il server; puoi cambiarlo con `MCP_TEST_SERVER_PYTHON`.
+La configurazione della cache per le eval è quella del server indipendente.
+
+Il server MCP non ha bisogno di credenziali: legge endpoint pubblici. La chiave serve solo
+all'assistente, per parlare con il modello.
 
 ### Con Docker
 
+Il Dockerfile produce due immagini con dipendenze separate, collegate dalla stessa rete Docker:
+
 ```bash
-make docker                                    # costruisce travelanalyst:dev
-make docker-run                                # assistente web su http://127.0.0.1:8000
-docker run -i --rm --env-file .env travelanalyst:dev python server.py   # solo MCP, su stdio
+docker build --build-arg COMPONENT=server -t travelanalyst-mcp:dev .
+docker build --build-arg COMPONENT=assistant -t travelanalyst-assistant:dev .
+docker network create travelanalyst-net
+
+# Server MCP: la cache appartiene a questo servizio
+docker run -d --rm --name travelanalyst-mcp --network travelanalyst-net \
+  -e MCP_HOST=0.0.0.0 -e MCP_PORT=8001 \
+  -v travelanalyst-cache:/var/lib/travelanalyst \
+  travelanalyst-mcp:dev python -m viaggiaresicuri_mcp.server
+
+# Assistente web: si collega al server tramite il nome del container
+docker run --rm --network travelanalyst-net -p 8000:8000 --env-file .env \
+  -e MCP_SERVER_URL=http://travelanalyst-mcp:8001/mcp travelanalyst-assistant:dev
+
+# Arresto del server quando non serve più
+docker stop travelanalyst-mcp
 ```
 
-Una sola immagine per i due modi di eseguire il progetto. La chiave non viene mai copiata dentro
-l'immagine: si passa a runtime con `--env-file`. `make docker-run` monta un volume per la cache
-dei payload, perché altrimenti ogni avvio ripartirebbe a cache vuota e riscaricherebbe dalla
-fonte quello che aveva già.
+La chiave del modello viene passata soltanto all'assistente. Il volume conserva la cache
+anche dopo la rimozione del container MCP. Il server MCP non pubblica una porta sull'host:
+è raggiungibile dall'assistente sulla rete Docker. In locale ascolta solo su `127.0.0.1`.
 
 ### Struttura
 
 ```
 README.md              questo file
-Dockerfile             immagine unica: UI web (default) o server MCP su stdio
-Makefile               test, ingest, docker
+Dockerfile             immagini separate: assistente e server MCP HTTP
 pyproject.toml         dipendenze, console script e configurazione di pytest
-server.py              shim per i launcher MCP esterni (Claude Desktop, mcp.json)
+server.py              entry point del server MCP HTTP
 viaggiaresicuri_mcp/   il server: tool, contratto, normalizzazione, client, cache
-    data/              l'indice semantico committato, asset del pacchetto
 assistant/             l'agente LangChain: CLI, UI web, system prompt
-tests/                 217 test offline, 8 sulla fonte reale, 2 sul modello (13 casi)
-scripts/               ingest dell'indice
-    discovery/         gli script con cui sono state esplorate le fonti
+tests/                 189 test offline, 8 sulla fonte reale, 2 sul modello (13 casi)
+scripts/discovery/     gli script con cui sono state esplorate le fonti
 docs/                  architettura, discovery, decisioni, agente proattivo
     storico/           i piani di lavoro, non più aggiornati
 ```
@@ -79,12 +120,11 @@ Il resto è testuale. La domanda parla **solo di documenti**: l'allerta in testa
 fa il suo lavoro.
 
 ```
-$ .venv/bin/travelanalyst
+$ .venv-assistant/bin/travelanalyst
 avvio del server MCP…
-INFO:viaggiaresicuri_mcp.server:indice degli approfondimenti: 124 chunk
 
 Assistente Viaggiare Sicuri
-gpt-5.6-luna via Responses API su api.openai.com · 11 tool · /aiuto per i comandi
+gpt-5.6-luna via Responses API su api.openai.com · 8 tool · /aiuto per i comandi
 
 › Che documenti servono per andare in Ucraina?
   → find_country
@@ -138,9 +178,18 @@ in corso cambiava l'inquadramento della risposta.
 
 - **Nessuno storico e nessuna query cross-Paese.** "Quali Paesi hanno allerte attive" non si può
   chiedere: ogni tool guarda un Paese alla volta.
-- **Il retrieval sugli approfondimenti ha un difetto misurato**: per "smarrimento del passaporto"
-  il chunk giusto arriva secondo, battuto da uno sui documenti rinvenuti all'estero.
-- **L'indice semantico è uno snapshot**, ricostruito a mano con `make ingest`.
+- **La data esposta è quella della scheda, non della sezione.** `updated_at` viene da
+  `updateDate`, che copre il documento intero. La cronologia interna dice altro: per l'Albania la
+  scheda risulta aggiornata al 31/07/2026, ma la Situazione sanitaria non cambia dal **07/02/2025**
+  — diciassette mesi prima. La data che citiamo è quindi corretta ma ottimista sul singolo
+  contenuto.
+- **20 dei 28 nodi sono raggiungibili.** Fuori restano la cronologia, le indicazioni per operatori
+  economici e i cinque nodi di primo piano, che arrivano solo come fallback quando il dettaglio è
+  vuoto. Nessuno dei 7 temi della traccia passa da lì.
+- **Le domande generali non hanno risposta.** Ogni tool parla di un Paese specifico: "come si
+  rinnova il passaporto" o "che cos'è la dengue" non sono coperte. Il prompt impone di dirlo e di
+  rimandare alla fonte, non di rispondere a memoria. La fonte quelle guide le pubblica: vedi il
+  primo punto dei limiti noti.
 - **La qualità delle risposte non è valutata**: la eval verifica quali tool vengono chiamati e la
   presenza o assenza di stringhe precise, non se la risposta è scritta bene.
 - **L'agente proattivo è solo progettato**, non implementato: vedi [PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md).
@@ -149,9 +198,9 @@ in corso cambiava l'inquadramento della risposta.
 
 | Suite | Comando | Copre | Esito |
 |---|---|---|---|
-| offline | `make test` | 217 test su contratto, normalizzazione, cache, tool, prompt, packaging | verdi |
-| fonte reale | `pytest -m network` | 8 test: tutte le 222 schede validate, invarianti sui campi vuoti | verdi |
-| eval del modello | `pytest -m llm -s` | 12 casi sull'assistente vero + riuso su due turni | 12/12 |
+| offline | comandi separati sopra | contratto, cache, tool, assistente, adapter HTTP e packaging | verificare entrambe le suite |
+| fonte reale | `.venv/bin/python -m pytest -m network` | 8 test: tutte le 222 schede validate, invarianti sui campi vuoti | verdi |
+| eval del modello | `.venv-assistant/bin/python -m pytest tests/test_assistant_eval.py -m llm -s` | 12 casi sull'assistente vero + riuso su due turni | 12/12 |
 
 I 12 casi asseriscono sulla traccia delle chiamate, che è deterministica, e sul testo solo per
 presenze e assenze precise: che un'allerta compaia nei primi 400 caratteri e prima della prima
@@ -175,17 +224,26 @@ regressione, non una misura indipendente della qualità.
 
 ## Limiti noti e cosa farei con più tempo
 
-1. **TTL differenziati per tipo di contenuto.** Oggi ce n'è uno solo, sei ore, più una sola
+1. **Esporre le due guide tematiche** — "Salute in viaggio" e "Documenti di viaggio" — con gli
+   stessi due tool che già esistono per i 28 nodi della scheda paese: `list` delle sezioni e `get`
+   di una sezione. Le ho misurate: **52 sezioni foglia** con un nome parlante (`Dengue`, `Rabbia`,
+   `Furto o smarrimento di documenti`), un sommario di sole intestazioni costa ~876 token e una
+   sezione ~725 in mediana, cioè esattamente il costo degli altri tool. Avevo costruito una
+   ricerca semantica su questo corpus e l'ho rimossa: un catalogo con un sommario si consulta, non
+   si cerca (ADR 2). Questa è la versione che scriverei con più tempo, ed è mezz'ora — ma non è
+   scritta, quindi sta qui e non fra le cose fatte.
+2. **Portare la data per sezione dentro `meta`.** La scheda pubblica una cronologia degli
+   aggiornamenti riga per riga ("07/02/2025 - Situazione sanitaria"): basta leggerla e associare a
+   ogni nodo la sua data reale, invece di ripetere quella del documento. È la correzione del primo
+   limite noto qui sopra, e renderebbe la citazione onesta al livello a cui la risposta la usa.
+3. **TTL differenziati per tipo di contenuto.** Oggi ce n'è uno solo, sei ore, più una sola
    eccezione dichiarata a 15 minuti sugli avvisi. Requisiti d'ingresso e mobilità potrebbero
    averne uno molto più lungo, il primo piano molto più corto. Da quando la rivalidazione è
    condizionale costa meno di prima, ma resta il limite più visibile: una scheda aggiornata dieci
    minuti fa può essere servita nella versione di sei ore prima.
-2. **Misurare il retrieval invece di aneddotarlo.** Serve un set di query con il chunk atteso e
-   un recall@k, non due esempi. Il difetto noto suggerisce che un ibrido lessicale aiuterebbe,
-   ma senza misura è un'ipotesi.
-3. **Persistere gli `id` degli avvisi già visti.** È la primitiva che manca all'agente proattivo:
+4. **Persistere gli `id` degli avvisi già visti.** È la primitiva che manca all'agente proattivo:
    una tabella `(id, nazione, tsModifica, first_seen)` e il "cosa è cambiato" diventa una query.
-4. **Dieci domande scritte da qualcun altro.** È il modo più rapido per scoprire dove il sistema
+5. **Dieci domande scritte da qualcun altro.** È il modo più rapido per scoprire dove il sistema
    si rompe davvero, e l'unico che non eredita i miei presupposti.
 
 ---

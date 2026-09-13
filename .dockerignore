@@ -21,3 +21,5 @@ tests
 docs
 scripts/discovery
 README.md
+
+.venv-assistant

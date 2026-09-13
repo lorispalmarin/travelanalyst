@@ -7,9 +7,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-# caricamento cache e approfondimenti
+from dotenv import load_dotenv
+
+# `var/` con la cache sta qui accanto, in radice di progetto
 ROOT = Path(__file__).resolve().parent.parent
-DATA = Path(__file__).resolve().parent / "data"
+load_dotenv(ROOT / ".env")
+
+MCP_HOST = os.getenv("MCP_HOST", "127.0.0.1")
+MCP_PORT = int(os.getenv("MCP_PORT", "8001"))
 
 BASE_URL = os.getenv("VS_BASE_URL", "https://www.viaggiaresicuri.it").rstrip("/")
 USER_AGENT = os.getenv(

@@ -9,7 +9,6 @@ import pytest
 
 from assistant import prompts
 from assistant.config import ConfigurazioneMancante, Settings, carica
-from assistant.mcp_tools import _costruisci_tool, _testo_del_risultato
 
 
 class TestConfigurazione:
@@ -18,6 +17,11 @@ class TestConfigurazione:
         with pytest.raises(ConfigurazioneMancante) as exc:
             carica()
         assert ".env" in str(exc.value), "il messaggio deve dire come rimediare"
+
+    def test_url_mcp_configurabile(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        monkeypatch.setenv("MCP_SERVER_URL", "http://mcp:8001/mcp")
+        assert carica().mcp_server_url == "http://mcp:8001/mcp"
 
     def test_default_sul_modello_della_traccia(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -90,11 +94,11 @@ class TestSystemPrompt:
     def test_dice_dove_stanno_le_normative_locali(self):
         assert "local_laws" in prompts.SYSTEM_PROMPT
 
-    def test_separa_la_ricerca_generale_dai_tool_paese(self):
+    def test_dichiara_il_confine_delle_fonti(self):
+        """Le domande generali non hanno più un tool: il prompt deve dirlo invece di far rispondere a memoria."""
         testo = prompts.SYSTEM_PROMPT
-        assert "search_approfondimenti" in testo
-        assert "non nominano un Paese" in testo
-        assert "breadcrumb" in testo
+        assert "non nominano una" in testo
+        assert "senza rispondere a memoria" in testo
 
 
 class _AgenteFinto:
@@ -119,8 +123,7 @@ class TestTracciaEventi:
 
         settings = Settings(
             api_key="x", model="m", base_url=None, use_responses_api=True,
-            reasoning_effort=None, reasoning_summary="auto", python_executable="python",
-            server_module="viaggiaresicuri_mcp.server", max_steps=4,
+            reasoning_effort=None, reasoning_summary="auto", mcp_server_url="http://127.0.0.1:8001/mcp", max_steps=4,
         )
         return Assistente(_AgenteFinto(eventi, messaggi), [], settings)
 
@@ -157,65 +160,11 @@ class TestTracciaEventi:
         from langchain_core.messages import ToolMessage
 
         errore = ToolMessage(
-            content="ERRORE DEL TOOL: [ambiguous_country] …", name="get_health_info", tool_call_id="1"
+            status="error", content="ERRORE DEL TOOL: [ambiguous_country] …", name="get_health_info", tool_call_id="1"
         )
         tracciato = await self._traccia([("updates", {"tools": {"messages": [errore]}})])
         assert tracciato[0]["tipo"] == "tool_result"
         assert tracciato[0]["errore"] is True
-
-
-class _Blocco:
-    def __init__(self, text: str) -> None:
-        self.text = text
-
-
-class _Risultato:
-    def __init__(self, testo: str, errore: bool = False) -> None:
-        self.content = [_Blocco(testo)]
-        self.is_error = errore
-        self.data = None
-
-
-class _Spec:
-    name = "get_health_info"
-    description = "Situazione sanitaria"
-    input_schema = {"type": "object", "properties": {"country": {"type": "string"}}, "required": ["country"]}
-    inputSchema = input_schema
-
-
-class _ClientFinto:
-    def __init__(self, risultato: _Risultato) -> None:
-        self.risultato = risultato
-        self.chiamate: list[tuple[str, dict]] = []
-
-    async def call_tool(self, nome, argomenti, **kwargs):
-        self.chiamate.append((nome, argomenti))
-        return self.risultato
-
-
-class TestPonteMCP:
-    def test_estrae_il_testo_dai_blocchi(self):
-        assert _testo_del_risultato(_Risultato("contenuto")) == "contenuto"
-
-    def test_il_tool_riporta_nome_descrizione_e_schema(self):
-        tool = _costruisci_tool(_ClientFinto(_Risultato("ok")), _Spec())
-        assert tool.name == "get_health_info"
-        assert tool.description == "Situazione sanitaria"
-        assert tool.args_schema["properties"]["country"]["type"] == "string"
-
-    async def test_inoltra_gli_argomenti_al_server(self):
-        client = _ClientFinto(_Risultato("ok"))
-        tool = _costruisci_tool(client, _Spec())
-        await tool.ainvoke({"country": "Albania"})
-        assert client.chiamate == [("get_health_info", {"country": "Albania"})]
-
-    async def test_un_errore_del_tool_torna_al_modello_come_testo(self):
-        """Se il Paese è ambiguo il modello deve poterlo leggere e chiedere, non schiantarsi."""
-        errore = _Risultato("[ambiguous_country] 'corea' è ambiguo. Candidati: …", errore=True)
-        tool = _costruisci_tool(_ClientFinto(errore), _Spec())
-        risposta = await tool.ainvoke({"country": "corea"})
-        assert risposta.startswith("ERRORE DEL TOOL")
-        assert "ambiguous_country" in risposta
 
 
 # ---------------------------------------------------------------------------

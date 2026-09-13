@@ -65,9 +65,6 @@ class TestSuperficieDeiTool:
             "get_local_transport",
             "get_embassy_contacts",
             "get_practical_info",
-            "list_country_topics",
-            "get_country_topics",
-            "search_approfondimenti",
             "get_allerte",
         }
 
@@ -111,35 +108,6 @@ class TestRisposte:
         payload = await chiama("get_practical_info", country="Albania")
         stati = {t["id"]: t["status"] for t in payload["data"]}
         assert set(stati.values()) <= {"available", "not_published"}
-
-
-class TestIndiceEFetch:
-    async def test_indice_copre_tutti_i_nodi(self):
-        payload = await chiama("list_country_topics", country="Albania")
-        chiavi = [voce["key"] for voce in payload["data"]]
-        assert len(chiavi) == 28
-        assert len(set(chiavi)) == 28
-        assert "security.local_laws" in chiavi
-
-    async def test_indice_costa_molto_meno_dei_contenuti(self):
-        indice = await chiama("list_country_topics", country="Albania")
-        peso_indice = len(json.dumps(indice, ensure_ascii=False))
-        peso_totale = sum(voce["chars"] for voce in indice["data"])
-        assert peso_indice < peso_totale / 3
-
-    async def test_fetch_per_chiave(self):
-        payload = await chiama(
-            "get_country_topics", country="Albania", keys=["entry.minors", "security.local_laws"]
-        )
-        assert [t["id"] for t in payload["data"]] == [
-            "Viaggi-all-estero-dei-minori",
-            "Normative-locali-rilevanti",
-        ]
-
-    async def test_chiave_inesistente_spiega_come_rimediare(self):
-        with pytest.raises(Exception) as exc:
-            await chiama("get_country_topics", country="Albania", keys=["pippo.pluto"])
-        assert "list_country_topics" in str(exc.value)
 
 
 class TestFiltroArgomenti:
@@ -237,3 +205,21 @@ class TestAllerte:
         descrizione = per_nome["get_allerte"]
         assert "anche se le allerte non sono state chieste" in descrizione
         assert "sprecata" in descrizione
+
+
+class TestAvvioDelServer:
+    def test_il_server_mcp_si_avvia_in_http(self, monkeypatch):
+        from viaggiaresicuri_mcp import server
+
+        chiamata = {}
+        monkeypatch.setattr(server.mcp, "run", lambda **kwargs: chiamata.update(kwargs))
+        server.main()
+        assert chiamata["transport"] == "http"
+        assert chiamata["path"] == "/mcp"
+        assert chiamata["host"] == server.MCP_HOST
+        assert chiamata["port"] == server.MCP_PORT
+
+    def test_il_modulo_dichiara_un_entry_point_eseguibile(self):
+        from viaggiaresicuri_mcp import server
+
+        assert callable(server.main)

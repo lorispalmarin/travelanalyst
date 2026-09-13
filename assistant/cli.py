@@ -70,7 +70,7 @@ async def repl() -> int:
         print(f"{ROSSO}{exc}{RESET}", file=sys.stderr)
         return 2
 
-    print(f"{GRIGIO}avvio del server MCP…{RESET}", file=sys.stderr)
+    print(f"{GRIGIO}connessione al server MCP…{RESET}", file=sys.stderr)
     try:
         async with apri_assistente(settings) as assistente:
             print(f"\n{BOLD}Assistente Viaggiare Sicuri{RESET}")

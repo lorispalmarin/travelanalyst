@@ -1,10 +1,4 @@
-"""Costruzione dell'assistente: modello LangChain + tool del server MCP.
-
-Il server gira come processo separato via stdio, non importato in-process: è la configurazione
-che userebbe un cliente vero, ed è l'unica che dimostra che il server funziona anche fuori da
-questo codice. I tool non sono scritti a mano ma generati dagli schemi che il server pubblica,
-quindi l'assistente non può usare nient'altro che quelli — che è il vincolo dello scenario.
-"""
+"""Assistente LangChain con tool caricati da un server MCP HTTP indipendente."""
 
 from __future__ import annotations
 
@@ -115,12 +109,12 @@ class Assistente:
                                 "argomenti": chiamata.get("args") or {},
                             }
                         if isinstance(messaggio, ToolMessage):
-                            contenuto = messaggio.content if isinstance(messaggio.content, str) else str(messaggio.content)
+                            contenuto = _testo_di(messaggio)
                             yield {
                                 "tipo": "tool_result",
                                 "nome": messaggio.name,
                                 "caratteri": len(contenuto),
-                                "errore": contenuto.startswith("ERRORE DEL TOOL"),
+                                "errore": messaggio.status == "error",
                                 "anteprima": contenuto[:2000],
                             }
                             # I risultati dei tool arrivano prima del testo: è il momento giusto
@@ -190,7 +184,7 @@ def _avviso_di_copia_locale(messaggi: Sequence[BaseMessage]) -> str | None:
     for messaggio in messaggi:
         if not isinstance(messaggio, ToolMessage):
             continue
-        contenuto = messaggio.content if isinstance(messaggio.content, str) else str(messaggio.content)
+        contenuto = _testo_di(messaggio)
         freschezza = estrai_freschezza(contenuto)
         if freschezza is not None:
             return testo_avviso(freschezza)
@@ -222,7 +216,7 @@ def _tool_chiamati(messaggi: Sequence[BaseMessage]) -> list[str]:
 
 @asynccontextmanager
 async def apri_assistente(settings: Settings | None = None) -> AsyncIterator[Assistente]:
-    """Avvia il server MCP, carica i tool e costruisce l'agente."""
+    """Apre la connessione MCP, carica i tool e costruisce l'agente."""
     settings = settings or carica()
 
     async with tool_del_server(settings) as tools:

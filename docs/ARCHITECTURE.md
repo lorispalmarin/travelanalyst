@@ -10,39 +10,34 @@ flowchart TB
         AG[agent.py<br/>create_agent + checkpointer]
         AG --- PR[prompts.py<br/>system prompt]
         AG --- FR[freshness.py<br/>banner fonte non raggiungibile]
-        AG --> MT[mcp_tools.py<br/>tool MCP → StructuredTool]
+        AG --> MT[mcp_tools.py<br/>langchain-mcp-adapters]
     end
 
-    MT -.stdio.-> SRV
+    MT -.HTTP /mcp.-> SRV
 
     subgraph server["viaggiaresicuri_mcp/ — FastMCP"]
-        SRV[server.py<br/>11 tool] --> SH[sheet.py<br/>viste sulla scheda]
+        SRV[server.py<br/>8 tool] --> SH[sheet.py<br/>viste sulla scheda]
         SRV --> AL[alerts.py<br/>tre stati]
-        SRV --> AP[approfondimenti.py<br/>indice in memoria]
         SRV --> CO[countries.py<br/>codice, nome, nome parziale]
         SH & AL & CO --> MO[models.py<br/>contratto Pydantic]
         MO --> NO[normalize.py<br/>HTML → testo, link, see_also]
         SH & AL & CO --> CL[client.py<br/>unico punto di rete]
-        AP --> EM[embeddings.py]
     end
 
     CL --> CA[(cache.py<br/>SQLite<br/>payload grezzi)]
     CL --> FONTE[/viaggiaresicuri.it/]
-    AP --> IDX[(data/ nel pacchetto<br/>124 chunk, committati)]
-    EM --> OAI[/text-embedding-3-large/]
 ```
 
-L'assistente avvia il server come sottoprocesso su stdio. Non lo importa: parla lo stesso
-protocollo che parlerebbe Claude Desktop, quindi quello che funziona in CLI funziona in qualunque
-client MCP.
+Il server MCP viene avviato indipendentemente con `python -m viaggiaresicuri_mcp.server`
+o `python server.py`. Espone MCP su HTTP all'indirizzo `http://127.0.0.1:8001/mcp`.
+L'assistente usa `MCP_SERVER_URL` per aprire la connessione, scoprire i tool e invocarli;
+non avvia né arresta il server. `MCP_HOST` e `MCP_PORT` configurano l'ascolto del server.
+Le variabili `VS_*` e la cache appartengono al processo server; le credenziali del modello
+al processo assistente. Server e assistente hanno ambienti e immagini Docker separati: FastMCP 4 usa MCP 2,
+mentre langchain-mcp-adapters usa MCP 1. Gli extra `server` e `assistant` non vanno installati
+insieme. Il ponte HTTP usa `MultiServerMCPClient.session` e `load_mcp_tools`; gli errori dei
+tool arrivano come `ToolMessage` con `status="error"`, i contenuti come blocchi testuali.
 
-Lo avvia come **modulo** (`python -m viaggiaresicuri_mcp.server`), non come file. È una
-distinzione che sembra pedante e non lo è: un percorso ricavato da `__file__` funziona solo con
-un'installazione editabile, dove il pacchetto sta accanto alla radice del progetto. Installato
-normalmente — in un container, per esempio — il pacchetto è in `site-packages` e quel percorso
-non esiste più. Per la stessa ragione l'indice semantico vive in `viaggiaresicuri_mcp/data/` ed è
-dichiarato come package data: è un asset del pacchetto, non un file della cartella di lavoro.
-`server.py` in radice resta, ma solo per i launcher esterni che vogliono un file da indicare.
 
 ## Il percorso di una query
 
@@ -85,9 +80,6 @@ con sé la propria provenienza; l'agente decide se chiedere le allerte, non lo f
 | `get_embassy_contacts(country)` | `infoGenerali.Ambasciate-e-Consolati` + PDF contatti | ~340 tok |
 | `get_practical_info(country)` | dati Paese e numeri di emergenza locali | ~500 tok |
 | `get_allerte(iso3)` | `ultima_ora/{ISO3}.json` | variabile |
-| `list_country_topics(country)` | indice dei 28 nodi, senza testo | ~820 tok |
-| `get_country_topics(country, keys)` | solo i nodi scelti | quanto pesano |
-| `search_approfondimenti(query, top_k?)` | indice semantico | ~`top_k` × 500 tok |
 
 **Perché non un tool per endpoint.** Gli endpoint sono tre: lista Paesi, scheda, avvisi. Un tool
 per endpoint significherebbe restituire la scheda intera, e la scheda intera pesa in mediana
@@ -114,9 +106,12 @@ soglia separava i refusi veri (`tailandia` → `thailandia`, 95) dai falsi amici
 `bielorussia`, 90), quindi la versione con le soglie rispondeva **Bielorussia** a chi chiedeva
 della Russia.
 
-I due tool sull'indice (`list_country_topics`, `get_country_topics`) sono la via d'uscita per le
-domande che non stanno in nessun tema: mostrano i 28 nodi disponibili a costo basso e poi
-recuperano solo quelli scelti, invece di far fallire la risposta.
+Gli otto tool coprono 20 dei 28 nodi della scheda. Gli altri otto — la cronologia degli
+aggiornamenti, le indicazioni per operatori economici e i cinque nodi di primo piano — non sono
+esposti direttamente: il primo piano arriva come fallback quando il dettaglio è vuoto, il resto
+non arriva. C'erano due tool generici che li raggiungevano; in tredici casi di eval il modello non
+li ha scelti nemmeno una volta, quindi sono stati tolti. La conseguenza dichiarata sta nei limiti
+noti del README.
 
 ## L'envelope `meta`, e perché non è una istruzione di prompt
 
@@ -124,7 +119,7 @@ Ogni tool risponde dentro lo stesso involucro:
 
 ```python
 class ToolResponse(BaseModel, Generic[T]):
-    country: CountryRef | None    # assente solo per la ricerca sugli approfondimenti
+    country: CountryRef | None    # opzionale: oggi ogni tool parla di un Paese
     topic: str
     data: T
     updated_at: datetime | None   # updateDate della fonte
@@ -148,29 +143,21 @@ riformula.
 copia locale, l'assistente antepone un avviso esplicito alla risposta ([freshness.py](../assistant/freshness.py)),
 e la UI web lo rende come un blocco giallo sopra il testo. Mai una cache silenziosa.
 
-## Le due modalità di retrieval
+## Una sola modalità di accesso
 
-| | Schede paese | Approfondimenti |
-|---|---|---|
-| Accesso | deterministico: Paese × sezione | semantico: coseno su 124 chunk |
-| Struttura | 7 sezioni × 28 nodi, identiche in tutti i Paesi | prosa, gerarchia irregolare |
-| Volume | 222 documenti, ~34 KB l'uno | 2 documenti, 230 KB in totale |
-| Tool | i dieci tool sul Paese | `search_approfondimenti` |
+Tutto passa per chiave: Paese × sezione. Non c'è retrieval semantico da nessuna parte, ed è una
+decisione misurata e non un'omissione — il ragionamento completo sta nell'ADR 2 di
+[DECISIONS.md](DECISIONS.md).
 
-**La regola che le separa non è il formato — sono entrambi JSON — ma la forma del contenuto e il
-suo volume.** Le schede sono già indicizzate per gli stessi assi su cui arrivano le domande: c'è
-una chiave per "Paese" e una per "requisiti di ingresso", quindi un embedding non aggiungerebbe
-nulla e toglierebbe determinismo. Gli approfondimenti no: sono guide discorsive dove la risposta
-a "cosa faccio se perdo il passaporto" sta in un paragrafo che non ha una chiave.
+In breve: le schede paese sono già indicizzate sugli assi su cui arrivano le domande, quindi un
+embedding non aggiungerebbe nulla e toglierebbe determinismo. E le due guide tematiche, che
+sembravano il caso buono per una ricerca semantica, si sono rivelate **un catalogo con un
+sommario**: 52 sezioni con un nome parlante, `Dengue`, `Rabbia`, `Furto o smarrimento di
+documenti`. Un catalogo si consulta, non si cerca.
 
-Il routing fra le due è affidato alle docstring, con un esempio negativo esplicito:
-`search_approfondimenti` dichiara di servire le domande **non** legate a un Paese e cita il caso
-da non sbagliare ("non usare per 'quali documenti servono per l'Albania'"). La eval verifica che
-la separazione tenga sull'agente vero.
-
-L'indice è una matrice numpy `(124, 3072)` caricata una volta all'avvio del server, non un vector
-database: a questo volume il prodotto scalare su tutta la matrice è immediato, e una dipendenza in
-più non avrebbe comprato niente.
+La conseguenza da dichiarare è che quelle guide, per ora, restano fuori dalle fonti
+dell'assistente: le domande generali che non nominano un Paese non hanno risposta, e il prompt
+impone di dirlo invece di rispondere a memoria.
 
 ## Client HTTP e cache
 

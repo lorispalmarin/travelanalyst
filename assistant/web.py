@@ -33,7 +33,7 @@ _lucchetto = asyncio.Lock()
 
 @asynccontextmanager
 async def ciclo_di_vita(app: FastAPI) -> AsyncIterator[None]:
-    """Il server MCP resta acceso per tutta la vita dell'applicazione."""
+    """La connessione MCP resta aperta per tutta la vita dell'applicazione."""
     settings = carica()
     async with apri_assistente(settings) as assistente:
         _stato["assistente"] = assistente
