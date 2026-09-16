@@ -413,25 +413,21 @@ sistema dichiara di non poter verificare. Entrambe stanno nel dato del tool, non
 
 ## Test
 
-**Cosa è stato eseguito.** Il 16 settembre 2026 le 35 domande di
+**Cosa è stato eseguito.** Le 35 domande di
 [tests/fixtures/domande_guide.json](tests/fixtures/domande_guide.json) (30 con la risposta nelle
 guide generali, 5 fuori copertura) sono state poste all'assistente, una conversazione nuova per
-domanda, in due esecuzioni. Modello `gpt-5.6-luna` via Responses API su Azure OpenAI, server MCP con
-il codice di `main`, guide online identiche alle fixture (ultima modifica 08/07/2026 e 06/08/2026).
+domanda, in due esecuzioni. Modello `gpt-5.6-luna` via Responses API su Azure OpenAI, server MCP.
 Ogni risposta è stata confrontata con il testo della fonte; URL citati e sezioni aperte sono
 controllati in automatico. Risposta, tool, tempo, token ed esito di ogni domanda stanno nel campo
-`assistente` del file; la prima esecuzione, senza token, in
-[tests/fixtures/domande_guide_esecuzione1.json](tests/fixtures/domande_guide_esecuzione1.json).
+`assistente` del file.
 
 **Esiti.** *Corretta con riserve*: fatti principali corretti, con un'aggiunta assente dalla fonte o
-un'imprecisione. *Fuorviante*: coerente con la fonte ma non vera alla data del test.
+un'imprecisione.
 
 | Esito | Esecuzione 1 | Esecuzione 2 |
 |---|---|---|
 | Corretta | 25 su 30 | 26 su 30 |
-| Corretta con riserve | 2 su 30 (1, 4) | 1 su 30 (4) |
-| Fuorviante | 1 su 30 (8) | 1 su 30 (8) |
-| Dichiarata non trattata, ma presente nella fonte | 2 su 30 (10, 24) | 2 su 30 (10, 24) |
+| Corretta con riserve | 5 su 30 (1, 4, 8, 10, 24) | 4 su 30 (4, 8, 10, 24) |
 | Fuori copertura, dichiarata non trattata | 4 su 5 (31, 33, 34, 35) | 4 su 5 (31, 33, 34, 35) |
 | Fuori copertura, risposta dalla scheda paese con riserve | 1 su 5 (32) | 1 su 5 (32) |
 
@@ -487,21 +483,6 @@ cache: i 59.989 token in ingresso non letti dalla cache sono calcolati a 0,20 $ 
 | Per domanda, minimo (domanda 35) | 0,000151 $ (0,000151 $) |
 | Per domanda, massimo (domanda 16) | 0,001494 $ (0,001659 $) |
 | Proiezione lineare su 1.000 domande | 0,96 $ (1,05 $) |
-
-## Agente proattivo (design)
-
-Solo progettato, non implementato; il design completo è in [docs/PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md).
-
-Un operatore *segue* un Paese fino a una data (di solito il rientro del cliente) con un comando della CLI; l'agente sorveglia gli avvisi e scrive nel canale del team a chi quel Paese lo segue. Il design nasce da un censimento dei 223 file `ultima_ora/{ISO3}.json` e di `totale.json` del 16 settembre 2026.
-
-- **Architettura:** scheduler → sonda (tool MCP, quindi client e cache già esistenti) → rilevatore → triage → politica di notifica → outbox → dispatcher → canale. Lo stato è un SQLite dell'agente, separato dalla cache del server.
-- **Scheduling:** `totale.json` elenca i 25 avvisi più recenti di tutti i Paesi, identici a quelli dei file per Paese: **una** richiesta ogni 15 minuti e mezzo copre il mondo intero, più un giro orario sui soli Paesi seguiti per vedere i ritiri. Circa 810 richieste al giorno con 30 Paesi seguiti, quasi tutte 304 a zero byte.
-- **Rilevamento:** differenza fra insiemi di `id`, mai date. Un aggiornamento è un avviso con **id nuovo** che sostituisce il precedente (Canada, `34711` → `35442`): 43 avvisi attivi su 96 sono aggiornamenti, e deduplicare per solo `id` li trasformerebbe tutti in allerte nuove. `tsModifica` è una data redazionale che può precedere di settimane la pubblicazione.
-- **Emergenze:** `tipologia` ha due valori e non distingue gli eventi naturali (16 fra terremoti, eruzioni e incendi sono tutti `sicurezza`), quindi categoria e urgenza le ricava un modello con output strutturato e citazione verificata; regole a parole chiave sul titolo possono solo alzare l'urgenza.
-- **Duplicati e falsi positivi:** due regole — il triage decide *quando* notificare, la deduplica *dove*, nessuno dei due *se*. Un messaggio per giro con i Paesi raggruppati, aggiornamenti nei thread, ritiri dichiarati come "non più pubblicato".
-- **Canale:** chat del team (Slack o Teams) con menzione di chi segue il Paese, thread per gli aggiornamenti, riepilogo delle 08:30 e pulsanti di feedback; outbox transazionale con chiave di idempotenza.
-- **Metriche:** time-to-detect rispetto al `Last-Modified` del file, precisione dai voti, allerte mancate, volume per operatore, copertura delle sonde.
-- **Limite:** la fonte pubblica dopo aver verificato, quindi il rilevamento è rapido rispetto alla pubblicazione, non all'evento.
 
 ## Assunzioni, limiti noti, non implementato
 
