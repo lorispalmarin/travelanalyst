@@ -8,13 +8,15 @@ import pytest
 from fastmcp import Client
 
 from viaggiaresicuri_mcp.countries import reset_index
-from viaggiaresicuri_mcp.errors import SourceNotFound
+from viaggiaresicuri_mcp.errors import SourceNotFound, SourceUnavailable
 from viaggiaresicuri_mcp.client import Risposta
 from viaggiaresicuri_mcp.server import mcp
 
 
 @pytest.fixture(autouse=True)
-def fonte_finta(monkeypatch, country_records, albania_payload, austria_payload, alerts_payloads):
+def fonte_finta(
+    monkeypatch, country_records, albania_payload, austria_payload, alerts_payloads, guide_payloads
+):
     def risolvi(path: str):
         if path.endswith("lista_nazioni.json"):
             return country_records
@@ -23,6 +25,8 @@ def fonte_finta(monkeypatch, country_records, albania_payload, austria_payload, 
             if iso3 in alerts_payloads:
                 return alerts_payloads[iso3]
             return {"ultima_ora": [], "focus": []}
+        if path.startswith("/approfondimenti/"):
+            return guide_payloads[path.rsplit("/", 1)[-1].removesuffix(".json")]
         if path.endswith("/ALB.json"):
             return albania_payload
         if path.endswith("/AUT.json"):
@@ -66,6 +70,8 @@ class TestSuperficieDeiTool:
             "get_embassy_contacts",
             "get_practical_info",
             "get_allerte",
+            "list_general_topics",
+            "get_general_info",
         }
 
     async def test_ogni_descrizione_elenca_i_contenuti(self):
@@ -205,6 +211,64 @@ class TestAllerte:
         descrizione = per_nome["get_allerte"]
         assert "anche se le allerte non sono state chieste" in descrizione
         assert "sprecata" in descrizione
+
+
+class TestGuideGenerali:
+    """I due tool senza Paese: il sommario delle guide e la sezione scelta."""
+
+    async def test_il_sommario_elenca_tutte_le_sezioni(self):
+        payload = await chiama("list_general_topics")
+        assert payload["country"] is None
+        assert len(payload["data"]) == 7
+        assert {v["id"].split("/")[0] for v in payload["data"]} == {
+            "preparaunviaggio",
+            "documentidiviaggio",
+        }
+        assert all(v["chars"] > 0 and " > " in v["breadcrumb"] for v in payload["data"])
+        assert {s["data"].rsplit("/", 1)[-1] for s in payload["sources"]} == {
+            "preparaunviaggio.json",
+            "documentidiviaggio.json",
+        }
+
+    async def test_il_sommario_sta_in_poche_righe(self):
+        """È il motivo del disegno: l'elenco intero costa meno di una singola sezione."""
+        payload = await chiama("list_general_topics")
+        assert len(json.dumps(payload["data"], ensure_ascii=False)) < 1200
+
+    async def test_la_sezione_arriva_con_percorso_pagina_e_avvertenza(self):
+        payload = await chiama(
+            "get_general_info", topic="documentidiviaggio/furtosmarrimentodidocumenti"
+        )
+        sezione = payload["data"]
+        assert sezione["breadcrumb"].startswith("Documenti di viaggio > ")
+        assert "Documento di viaggio provvisorio" in sezione["text"]
+        assert "/approfondimenti-insights/documentidiviaggio" in sezione["page"]
+        assert payload["sources"]["page"] == sezione["page"]
+        assert payload["updated_at"] is None, "le guide non dichiarano una data di aggiornamento"
+        assert "verificare le indicazioni ufficiali" in payload["notice"]
+
+    async def test_un_id_inesistente_elenca_quelli_validi(self):
+        with pytest.raises(Exception) as exc:
+            await chiama("get_general_info", topic="documentidiviaggio/inventato")
+        messaggio = str(exc.value)
+        assert "unknown_topic" in messaggio
+        assert "documentidiviaggio/furtosmarrimentodidocumenti" in messaggio
+
+    async def test_guide_irraggiungibili_senza_copia_sono_un_errore_esplicito(self, monkeypatch):
+        async def giu(path: str, condizionali=None):
+            raise SourceUnavailable(f"{path} non raggiungibile")
+
+        monkeypatch.setattr("viaggiaresicuri_mcp.client._scarica", giu)
+        with pytest.raises(Exception) as exc:
+            await chiama("list_general_topics")
+        assert "source_unavailable" in str(exc.value)
+
+    async def test_le_descrizioni_portano_dal_sommario_alla_sezione(self):
+        async with Client(mcp) as client:
+            per_nome = {t.name: (t.description or "").lower() for t in await client.list_tools()}
+        assert "senza un paese" in per_nome["list_general_topics"]
+        assert "get_general_info" in per_nome["list_general_topics"]
+        assert "list_general_topics" in per_nome["get_general_info"]
 
 
 class TestAvvioDelServer:

@@ -94,9 +94,10 @@ class TestSystemPrompt:
     def test_dice_dove_stanno_le_normative_locali(self):
         assert "local_laws" in prompts.SYSTEM_PROMPT
 
-    def test_dichiara_il_confine_delle_fonti(self):
-        """Le domande generali non hanno più un tool: il prompt deve dirlo invece di far rispondere a memoria."""
+    def test_le_domande_generali_passano_dalle_guide(self):
+        """Prima il sommario, poi la sezione: e se nessun titolo corrisponde, si dice."""
         testo = prompts.SYSTEM_PROMPT
+        assert "list_general_topics" in testo and "get_general_info" in testo
         assert "non nominano una" in testo
         assert "senza rispondere a memoria" in testo
 

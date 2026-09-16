@@ -273,6 +273,36 @@ class TopicRef(BaseModel):
     chars: int
 
 
+class GuideNode(BaseModel):
+    """Un nodo di `/approfondimenti/{nome}.json`. I contenitori hanno `contenuto` vuoto."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    title: str = Field(alias="nome")
+    html: str = Field(default="", alias="contenuto")
+    children: list[GuideNode] = Field(default_factory=list, alias="sezioni")
+
+
+class GuideSection(BaseModel):
+    """Una sezione con testo di una guida generale, con la sua citazione."""
+
+    id: str                 # "{guida}/{id della fonte}", refusi della fonte compresi
+    breadcrumb: str         # "Documenti di viaggio > Furto o smarrimento di documenti"
+    title: str
+    text: str
+    links: list[Link] = Field(default_factory=list)
+    page: str               # pagina della guida sul sito, da citare
+
+
+class GuideRef(BaseModel):
+    """Voce del sommario delle guide: abbastanza per scegliere, troppo poco per rispondere."""
+
+    id: str
+    breadcrumb: str
+    chars: int
+
+
 class Source(BaseModel):
     page: str
     data: str
@@ -291,6 +321,6 @@ class ToolResponse(BaseModel, Generic[T]):
     topic: str
     data: T
     updated_at: datetime | None = None
-    sources: Source
+    sources: Source | list[Source]
     meta: Meta | None = None
     notice: str = DISCLAIMER

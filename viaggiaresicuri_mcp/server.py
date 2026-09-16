@@ -15,11 +15,15 @@ from .alerts import alerts_source_for, leggi_avvisi
 from .config import MCP_HOST, MCP_PORT
 from .countries import get_index
 from .errors import CountryNotFound, SourceError, UnknownTopic
+from .general_info import guide_index, guide_section, load_guides, source_of
+from .general_info import sources as guide_sources
 from .models import (
     Avvisi,
     CountryMatch,
     CountryRef,
     CountrySheet,
+    GuideRef,
+    GuideSection,
     Source,
     Topic,
     ToolResponse,
@@ -46,6 +50,8 @@ Come muoverti fra i tool:
 - `see_also` elenca le sezioni a cui la fonte rimanda: `security` -> get_security_info,
   `health` -> get_health_info, `entry` -> get_entry_requirements, `general` ->
   get_embassy_contacts o get_practical_info, `mobility` -> get_local_transport.
+- Senza un Paese restano le due guide generali: list_general_topics per il sommario,
+  get_general_info per la sezione scelta. Quelle guide non hanno una data di aggiornamento.
 """.strip()
 
 mcp = FastMCP(name="viaggiaresicuri", instructions=INSTRUCTIONS)
@@ -134,8 +140,9 @@ async def get_entry_requirements(country: str, topics: list[str] | None = None) 
     durata dei soggiorni; viaggi all'estero dei minori; formalità doganali e valutarie (valuta
     importabile, beni da dichiarare, animali al seguito); altre informazioni sull'ingresso.
 
-    Risponde a "cosa chiede *questo* Paese per farmi entrare". Le regole generali su come si
-    ottiene o si rinnova un documento non dipendono dalla destinazione.
+    Risponde a "cosa chiede *questo* Paese per farmi entrare". Le regole italiane sui documenti
+    per l'espatrio, uguali per ogni destinazione — documenti dei minori, furto o smarrimento
+    all'estero — stanno nelle guide generali: list_general_topics e get_general_info.
 
     `topics` opzionale per restringere: passport, visa, minors, customs, other. Utile perché su
     alcuni Paesi questa sezione è molto lunga.
@@ -171,7 +178,8 @@ async def get_health_info(country: str, topics: list[str] | None = None) -> Tool
     vaccinazioni obbligatorie e raccomandate.
 
     Risponde a "cosa mi serve per *questo* Paese". Le domande su una malattia in sé — che cos'è
-    la dengue, come si trasmette — non sono fra le fonti di questo server.
+    la dengue, come si trasmette — non sono fra le fonti di questo server: la guida generale si
+    limita a rimandare al Ministero della Salute, e quel rimando sta in get_general_info.
 
     `topics` opzionale: facilities, diseases, warnings, vaccinations.
     """
@@ -255,6 +263,62 @@ async def get_allerte(iso3: str) -> ToolResponse[Avvisi]:
         data=avvisi,
         updated_at=meta.last_updated,
         sources=alerts_source_for(ref.iso3),
+        meta=meta,
+    )
+
+
+@mcp.tool
+async def list_general_topics() -> ToolResponse[list[GuideRef]]:
+    """Sommario delle due guide generali: quello che la fonte pubblica **senza un Paese**.
+
+    "Preparare un viaggio" (consulto medico e farmaci da portare, certificati sanitari e tessera
+    TEAM, assicurazione di viaggio dentro e fuori dall'UE, pacchetti turistici e recesso) e
+    "Documenti di viaggio" (passaporto, carta d'identità per l'espatrio, minori, furto o
+    smarrimento all'estero, documento di viaggio provvisorio).
+
+    Sette sezioni con un titolo parlante: l'elenco costa poche decine di token, quindi chiamalo
+    appena la domanda non nomina un Paese, poi passa l'`id` scelto a get_general_info. Se nessun
+    titolo corrisponde alla domanda, le guide non trattano il tema: dillo invece di rispondere a
+    memoria.
+    """
+    try:
+        sezioni, meta = await load_guides()
+    except SourceError as exc:
+        raise ToolError(f"[{exc.code}] Guide generali non disponibili: {exc}") from exc
+
+    return ToolResponse[list[GuideRef]](
+        topic="Guide generali",
+        data=guide_index(sezioni),
+        sources=guide_sources(),
+        meta=meta,
+    )
+
+
+@mcp.tool
+async def get_general_info(topic: str) -> ToolResponse[GuideSection]:
+    """Il testo di una sezione delle guide generali, con il percorso e la pagina da citare.
+
+    `topic` è l'`id` che restituisce list_general_topics, per esempio
+    `documentidiviaggio/furtosmarrimentodidocumenti`. Un id che non esiste è un errore che elenca
+    quelli validi, non una risposta vuota.
+
+    Queste guide non riportano una data di aggiornamento: `updated_at` resta vuoto e va detto,
+    non inventato.
+    """
+    try:
+        sezioni, meta = await load_guides()
+    except SourceError as exc:
+        raise ToolError(f"[{exc.code}] Guide generali non disponibili: {exc}") from exc
+
+    try:
+        sezione = guide_section(sezioni, topic)
+    except UnknownTopic as exc:
+        raise ToolError(f"[{exc.code}] {exc}") from exc
+
+    return ToolResponse[GuideSection](
+        topic=sezione.breadcrumb,
+        data=sezione,
+        sources=source_of(sezione),
         meta=meta,
     )
 

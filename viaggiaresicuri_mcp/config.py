@@ -69,3 +69,15 @@ def sheet_pdf_url(iso3: str) -> str:
 
 def contacts_pdf_url(iso3: str) -> str:
     return f"{BASE_URL}/schede_paese/pdf/{iso3}_contactDetails.pdf"
+
+
+def guide_path(nome: str) -> str:
+    return f"/approfondimenti/{nome}.json"
+
+
+def guide_url(nome: str) -> str:
+    return f"{BASE_URL}{guide_path(nome)}"
+
+
+def guide_page_url(nome: str) -> str:
+    return f"{BASE_URL}/approfondimenti-insights/{nome}"

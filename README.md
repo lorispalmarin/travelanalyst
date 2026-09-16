@@ -13,7 +13,7 @@ flowchart LR
     end
     AD -- "MCP su HTTP /mcp" --> SRV
     subgraph server["viaggiaresicuri_mcp/ — ambiente .venv"]
-        SRV["server.py<br/>8 tool FastMCP"] --> CO["countries.py<br/>nome → ISO3"]
+        SRV["server.py<br/>10 tool FastMCP"] --> CO["countries.py<br/>nome → ISO3"]
         SRV --> SH["sheet.py<br/>viste sulla scheda"]
         SRV --> AL["alerts.py<br/>tre stati"]
         CO & SH & AL --> CL["client.py<br/>unico punto di rete"]
@@ -166,17 +166,19 @@ lettera, link a `ALB_contactDetails.pdf`, nessuna chiamata a `get_allerte`, che 
 | LangChain e FastMCP | `create_agent` + `langchain-mcp-adapters` ([agent.py](assistant/agent.py)); `FastMCP` su HTTP ([server.py](viaggiaresicuri_mcp/server.py)) | |
 | Disclaimer | campo `notice` in ogni risposta dei tool; il prompt impone di chiudere ogni risposta con l'avvertenza | |
 | Verificabilità | `sources` (pagina, JSON, PDF), `updated_at`, `meta`; la CLI e la UI mostrano ogni chiamata ai tool | |
-| Domande generali senza un Paese | — | **non coperte**: le guide tematiche non sono esposte, vedi [ADR 2](#adr-2-nessun-rag-decide-la-forma-del-contenuto) |
+| Domande generali senza un Paese | `list_general_topics` + `get_general_info` → guide "Preparare un viaggio" e "Documenti di viaggio" | sommario e lettura, senza ricerca: vedi [ADR 2](#adr-2-nessun-rag-decide-la-forma-del-contenuto) |
 | Design dell'agente proattivo | [docs/PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md) | solo design, non implementato |
 
 ## Architettura
 
 **Server MCP** ([viaggiaresicuri_mcp/](viaggiaresicuri_mcp/)), l'unico componente che conosce la fonte.
-- `server.py`: gli 8 tool, le istruzioni del server, gli errori tradotti in `ToolError` con codice.
+- `server.py`: i 10 tool, le istruzioni del server, gli errori tradotti in `ToolError` con codice.
 - `countries.py`: nome → ISO3 (ISO3, ISO2, nome ufficiale italiano o un suo pezzo non ambiguo); con
   più corrispondenze restituisce i candidati.
 - `sheet.py` e `alerts.py`: scheda validata con vista per sezione e fallback sul primo piano; avvisi
   con i tre stati e la frase pronta.
+- `general_info.py`: le due guide generali validate e appiattite in sezioni, esposte come sommario
+  e lettura. Nessun indice: sono sette sezioni e il sommario intero costa 486 token.
 - `models.py` e `normalize.py`: il contratto Pydantic. Nei validator l'HTML diventa testo, i link sono
   estratti prima di togliere i tag, i rimandi fra sezioni finiscono in `see_also`. I nodi sconosciuti
   non rompono la validazione (`extra="allow"`).
@@ -259,6 +261,8 @@ sequenceDiagram
 | `get_embassy_contacts(country)` | recapiti di ambasciata e consolati + PDF dei soli contatti | un cliente in difficoltà, documenti persi o rubati |
 | `get_practical_info(country)` | dati del Paese, informazioni utili, numeri di emergenza locali | valuta, fuso orario, prefissi, polizia e ambulanza |
 | `get_allerte(iso3)` | avvisi in corso con stato e frase pronta | "posso partire adesso", richieste esplicite di avvisi, e ogni volta che un avviso cambierebbe la risposta; una sola chiamata per Paese nella conversazione |
+| `list_general_topics()` | il sommario delle 7 sezioni delle due guide generali | primo passo quando la domanda non nomina un Paese |
+| `get_general_info(topic)` | il testo di una sezione, con percorso e pagina da citare | subito dopo il sommario, sull'`id` scelto |
 
 **Principio di design.** Gli endpoint utili sono tre, ma un tool per endpoint restituirebbe la
 scheda intera: nel censimento su 222 Paesi circa 4.900 token in mediana e 18.700 al massimo
@@ -266,7 +270,7 @@ scheda intera: nel censimento su 222 Paesi circa 4.900 token in mediana e 18.700
 unico contratto, qualche centinaio di token ciascuna. Scendere al singolo nodo moltiplicherebbe i
 tool; per restringere basta `topics`.
 
-Con otto tool il modello sceglie leggendo le **docstring**, scritte come istruzioni operative: cosa
+Con dieci tool il modello sceglie leggendo le **docstring**, scritte come istruzioni operative: cosa
 contiene la sezione e cosa no (droga e farmaci stanno sotto sicurezza, le domande su una malattia in
 sé non sono coperte), quando `get_allerte` serve e quando è una chiamata sprecata. `find_country` è
 volutamente severo, senza alias né fuzzy matching: "Olanda" o "Bali" le traduce il modello, e un
@@ -314,7 +318,7 @@ elenca gli endpoint senza descriverne i campi, e in un punto è sbagliata, perch
 | `/schede_paese/pdf/{ISO3}.pdf` | PDF della scheda | come link |
 | `/schede_paese/pdf/{ISO3}_contactDetails.pdf` | PDF di una pagina con i soli recapiti | come link |
 | `/ultima_ora/totale.json` | feed globale recente, troncato | no: non è un superset dei per-Paese |
-| `/approfondimenti/{nome}.json` | guide tematiche non legate a un Paese | no, vedi ADR 2 |
+| `/approfondimenti/{nome}.json` | guide generali non legate a un Paese | sì: `preparaunviaggio` e `documentidiviaggio`; `saluteinviaggio` risponde ma non è più pubblicato |
 | `/marker/marker_{ISO3}.json` | lista | no: sempre `[]` nei campioni |
 
 **Anomalie.**
@@ -328,6 +332,11 @@ elenca gli endpoint senza descriverne i campi, e in un punto è sbagliata, perch
 - **Array vuoti come caso normale.** `ultima_ora/ALB.json` pesa 28 byte, con entrambe le liste vuote.
 - **`""` al posto di `null`** su `nazione` e `tipologia`. Lo stesso avviso ha una forma diversa in
   `totale.json` e nell'endpoint per Paese.
+- **Un endpoint che risponde ma non è più pubblicato.** `/approfondimenti/saluteinviaggio.json`
+  torna 200 con 216 KB e 48 sezioni, ma nel bundle Angular la rotta corrispondente non esiste e il
+  metodo che lo scarica non è chiamato da nessuna pagina: il link rimasto nel footer ricade nel
+  redirect alla home. Ultima modifica 23/06/2026, contro 08/07 e 06/08 delle due guide vive. Un
+  200 non vuol dire "pubblicato": le guide generali sono due, non tre.
 
 **ETag e Last-Modified.** Verificati il 13 settembre 2026 su lista Paesi, scheda ALB e avvisi ALB e
 UKR: tutti espongono `etag`, `last-modified` e `cache-control: public,max-age=0`. La GET condizionale
@@ -348,7 +357,7 @@ due Paesi la carica due volte.
 per sezione, più `find_country` e `get_allerte`. Il taglio si ferma alla sezione, con `topics`
 come filtro opzionale.
 **Conseguenze.** Il contesto resta piccolo e il routing dipende dalle docstring, che vanno curate
-come codice. Ci sono 8 tool da tenere coerenti invece di 3, e ogni nuova sezione della fonte
+come codice. Ci sono 10 tool da tenere coerenti invece di 3, e ogni nuova sezione della fonte
 richiede una scelta esplicita su dove esporla. Oggi sono raggiungibili 20 dei 28 nodi: restano
 fuori la cronologia degli aggiornamenti, le indicazioni per operatori economici,
 `Documentazione-necessaria` (sempre vuoto) e il primo piano, che arriva solo come fallback.
@@ -356,7 +365,8 @@ fuori la cronologia degli aggiornamenti, le indicazioni per operatori economici,
 ### ADR 2. Nessun RAG: decide la forma del contenuto
 
 **Contesto.** Le schede paese sono già indicizzate sugli assi delle domande (Paese × sezione).
-Restavano le guide tematiche "Salute in viaggio" e "Documenti di viaggio", l'unico contenuto non
+Restavano le guide tematiche — allora identificate in "Salute in viaggio" e "Documenti di
+viaggio", vedi l'aggiornamento in fondo all'ADR — l'unico contenuto non
 legato a un Paese, e su quelle era stata costruita una ricerca semantica con embedding.
 **Decisione.** Tolta. Nessun retrieval semantico, da nessuna parte. Non è il formato a decidere
 (anche le schede sono prosa HTML) ma la forma del contenuto. Misurate, le guide si sono rivelate un
@@ -365,9 +375,21 @@ documenti`) e un sommario di circa 876 token, leggibile per intero. La ricerca s
 proprio dove una scelta per nome non può sbagliare: per "smarrimento del passaporto" metteva al
 primo posto "Restituzione di carte identità italiane rinvenute all'estero".
 **Conseguenze.** Sono spariti l'indice binario, lo script di ingestion e le dipendenze relative, e
-il server non riceve più alcuna credenziale di modello. Il prezzo è che le domande generali senza
-un Paese non hanno risposta, e il prompt obbliga a dirlo. La sostituzione naturale, due tool
-`list`/`get` sulle sezioni delle guide, non è scritta.
+il server non riceve più alcuna credenziale di modello.
+
+**Aggiornamento del 16/09/2026: le guide ora sono esposte, con il sommario e non con una ricerca.**
+Le guide generali vive sono due, "Preparare un viaggio" e "Documenti di viaggio" — la terza,
+"Salute in viaggio", la fonte la serve ancora come JSON ma non la pubblica più — e valgono sette
+sezioni per 3.866 token. `list_general_topics` restituisce il sommario a 486 token e
+`get_general_info` la sezione scelta, in mediana 972 token: 1.458 in tutto, e la scelta è
+esplicita e deterministica.
+
+La ricerca è stata comunque scritta e misurata, sul ramo `search-general-information`, che **non è
+stato unito**. Funziona: su 35 domande etichettate a mano fa hit@1 25/30, hit@3 29/30 e MRR 0,901.
+Ma i primi tre risultati costano 2.910 token in mediana contro i 3.866 dell'intero corpus, cioè
+restituiscono tre quarti di tutto quello che c'è: un filtro che non filtra, in cambio di un motore
+da mantenere. Il ramo resta lì come misura: se le guide crescono — `avvertenze.json` ne
+aggiungerebbe due, o se la guida sanitaria tornasse pubblicata — quella scelta si ribalta.
 
 ### ADR 3. TTL unico, con rivalidazione condizionale
 
@@ -475,13 +497,15 @@ Solo progettato, non implementato; il design completo è in [docs/PROACTIVE_AGEN
 - Con cache vuota e fonte giù il tool restituisce un errore, ma il prompt non ha una regola su come riferirlo.
 - La conversazione vive in memoria e si perde al riavvio. La UI web ha un solo thread condiviso fra tutti i browser e accetta una domanda alla volta.
 - Le eval (13 casi più un test su due turni) le ho scritte io a partire dai difetti già trovati: sono copertura di regressione, non una misura indipendente della qualità.
+- Nelle guide generali la sezione la sceglie il modello leggendo il sommario, e quanto ci prenda non è ancora misurato: le 35 domande etichettate a mano ([tests/fixtures/domande_guide.json](tests/fixtures/domande_guide.json)) servono a quello, ma la misura richiede il modello.
+- Le guide generali non dichiarano una data di aggiornamento: `updated_at` resta vuoto e la risposta lo dice, invece di citare la data dello scaricamento.
 
 **Valutato e non implementato**
 - *Ricerca ibrida, BM25, reranking, query rewriting, vector database:* caduti insieme al RAG (ADR 2). Migliorare il retrieval su un corpus che non ne ha bisogno sarebbe stato ottimizzare la cosa sbagliata.
 - *TTL differenziati:* preferibili, ma servirebbe la frequenza di cambiamento per sezione (ADR 3).
 - *Judge a runtime:* una chiamata e una latenza in più per controllare a valle ciò che lo schema garantisce a monte (ADR 6).
 - *Parsing dei PDF:* il contenuto si sovrappone al JSON; restano link da inoltrare.
-- *Tool `list`/`get` sulle guide tematiche:* il sostituto giusto della ricerca semantica, non scritto.
+- *Ricerca full-text sulle guide generali:* scritta e misurata sul ramo `search-general-information`, non unita — su sette sezioni i primi tre risultati sono già tre quarti del corpus ([ADR 2](#adr-2-nessun-rag-decide-la-forma-del-contenuto)).
 - *Agente proattivo:* solo design. Manca la tabella degli avvisi già visti.
 
 ## Struttura del repo

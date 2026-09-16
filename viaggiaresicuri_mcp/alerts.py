@@ -37,12 +37,9 @@ def _lista(payload: dict, chiave: str, iso3: str) -> list:
 
 
 def _valida_focus(grezzi: list, iso3: str) -> list[Alert]:
-    """`focus` si valida voce per voce, e una voce malformata si salta.
-
+    """
     Asimmetria voluta rispetto a `ultima_ora`, che invece fallisce rumorosamente. `focus` è
-    vuoto in tutti i Paesi osservati e porta contenuto editoriale non riferito al Paese: se un
-    giorno la fonte lo popola con una forma diversa, il prezzo non deve essere che il tool degli
-    avvisi smette di funzionare — sarebbe il guasto peggiore proprio dove serve di più.
+    vuoto in tutti i Paesi osservati e porta contenuto non riferito al Paese (estratto da totale.json)
     """
     voci: list[Alert] = []
     for item in grezzi:
@@ -85,8 +82,8 @@ async def leggi_avvisi(iso3: str, nome: str | None = None) -> tuple[Avvisi, Meta
     """Gli avvisi di un Paese con lo stato di verificabilità, non solo con la lista.
 
     Il TTL qui è quello degli avvisi, non quello generale: 15 minuti. Se la fonte non risponde si
-    serve comunque la copia — la regola generale non cambia — ma lo stato diventa
-    `non_verificabile`, perché su questo endpoint una lista vuota vecchia non è un'informazione.
+    serve comunque la copia ma lo stato diventa `non_verificabile`, perché su questo endpoint una lista 
+    vuota vecchia non è un'informazione.
     """
     scaricati = await fetch(alerts_path(iso3), ttl_seconds=ALERTS_TTL_SECONDS)
     payload = scaricati.payload

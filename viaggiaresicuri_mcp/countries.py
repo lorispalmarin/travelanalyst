@@ -19,6 +19,9 @@ def _contiene_parola(nome: str, pezzo: str) -> bool:
 
 
 def fold(text: str) -> str:
+    """ 
+    Normalizzazione del testo 
+    """
     decomposed = unicodedata.normalize("NFKD", text or "")
     stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", stripped.lower())).strip()

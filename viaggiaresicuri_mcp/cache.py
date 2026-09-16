@@ -1,7 +1,6 @@
 """Cache persistente dei payload della fonte.
 
-Si cacha il corpo grezzo della risposta, sotto il livello di normalizzazione: un cambio di
-parsing non invalida la cache, e ogni riga è un payload della fonte riusabile come fixture.
+Si cacha il corpo grezzo della risposta, sotto il livello di normalizzazione.
 """
 
 from __future__ import annotations
