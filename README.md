@@ -3,25 +3,7 @@
 Un server MCP che espone come tool le schede paese e gli avvisi di viaggiaresicuri.it, e un
 assistente LangChain per il customer care che risponde solo attraverso quei tool, citando fonte e data.
 
-```mermaid
-flowchart LR
-    subgraph assistente["assistant/ — ambiente .venv-assistant"]
-        CLI["CLI<br/>travelanalyst"] --> AG
-        WEB["UI web<br/>FastAPI + SSE"] --> AG
-        AG["agent.py<br/>create_agent + system prompt"] --> LLM["modello OpenAI<br/>Responses API"]
-        AG --> AD["mcp_tools.py<br/>langchain-mcp-adapters"]
-    end
-    AD -- "MCP su HTTP /mcp" --> SRV
-    subgraph server["viaggiaresicuri_mcp/ — ambiente .venv"]
-        SRV["server.py<br/>10 tool FastMCP"] --> CO["countries.py<br/>nome → ISO3"]
-        SRV --> SH["sheet.py<br/>viste sulla scheda"]
-        SRV --> AL["alerts.py<br/>tre stati"]
-        CO & SH & AL --> CL["client.py<br/>unico punto di rete"]
-        CL --- CA[("cache SQLite<br/>payload grezzi")]
-    end
-
-    CL -- HTTPS --> VS["viaggiaresicuri.it<br/>JSON pubblici"]
-```
+![Architettura di TravelAnalyst: accesso da CLI e UI web, assistente LangChain con il modello, server FastMCP con i tool, client HTTP con cache SQLite verso viaggiaresicuri.it](docs/flusso.png)
 
 ## Indice
 
