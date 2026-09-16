@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import logging
 import sys
+from typing import Annotated
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from pydantic import Field
 
 import asyncio
 
@@ -15,11 +17,14 @@ from .alerts import alerts_source_for, leggi_avvisi
 from .config import MCP_HOST, MCP_PORT
 from .countries import get_index
 from .errors import CountryNotFound, SourceError, UnknownTopic
+from .general_info import MAX_RISULTATI, search_guides
+from .general_info import sources as guide_sources
 from .models import (
     Avvisi,
     CountryMatch,
     CountryRef,
     CountrySheet,
+    GuideHit,
     Source,
     Topic,
     ToolResponse,
@@ -46,6 +51,9 @@ Come muoverti fra i tool:
 - `see_also` elenca le sezioni a cui la fonte rimanda: `security` -> get_security_info,
   `health` -> get_health_info, `entry` -> get_entry_requirements, `general` ->
   get_embassy_contacts o get_practical_info, `mobility` -> get_local_transport.
+- `search_general_information` è l'unico tool senza Paese: cerca per parole nelle guide
+  tematiche e restituisce sezioni candidate, non risposte. Le guide non hanno una data di
+  aggiornamento.
 """.strip()
 
 mcp = FastMCP(name="viaggiaresicuri", instructions=INSTRUCTIONS)
@@ -134,8 +142,9 @@ async def get_entry_requirements(country: str, topics: list[str] | None = None) 
     durata dei soggiorni; viaggi all'estero dei minori; formalità doganali e valutarie (valuta
     importabile, beni da dichiarare, animali al seguito); altre informazioni sull'ingresso.
 
-    Risponde a "cosa chiede *questo* Paese per farmi entrare". Le regole generali su come si
-    ottiene o si rinnova un documento non dipendono dalla destinazione.
+    Risponde a "cosa chiede *questo* Paese per farmi entrare". Le regole italiane sui documenti
+    per l'espatrio, uguali per ogni destinazione — documenti dei minori, furto o smarrimento
+    all'estero — stanno in search_general_information.
 
     `topics` opzionale per restringere: passport, visa, minors, customs, other. Utile perché su
     alcuni Paesi questa sezione è molto lunga.
@@ -171,7 +180,9 @@ async def get_health_info(country: str, topics: list[str] | None = None) -> Tool
     vaccinazioni obbligatorie e raccomandate.
 
     Risponde a "cosa mi serve per *questo* Paese". Le domande su una malattia in sé — che cos'è
-    la dengue, come si trasmette — non sono fra le fonti di questo server.
+    la dengue, come si trasmette — non sono fra le fonti di questo server: la guida generale si
+    limita a rimandare al Ministero della Salute, ed è quel rimando che restituisce
+    search_general_information.
 
     `topics` opzionale: facilities, diseases, warnings, vaccinations.
     """
@@ -255,6 +266,44 @@ async def get_allerte(iso3: str) -> ToolResponse[Avvisi]:
         data=avvisi,
         updated_at=meta.last_updated,
         sources=alerts_source_for(ref.iso3),
+        meta=meta,
+    )
+
+
+@mcp.tool
+async def search_general_information(
+    query: str, top_k: Annotated[int, Field(ge=1, le=MAX_RISULTATI)] = 3
+) -> ToolResponse[list[GuideHit]]:
+    """Cerca nelle due guide generali di Viaggiare Sicuri: informazioni **non legate a un Paese**.
+
+    "Preparare un viaggio": consulto medico prima della partenza e farmaci da portare con sé;
+    certificati sanitari (dispositivi medicali, terapie croniche, esenzione dalla febbre gialla,
+    tessera TEAM, test HIV per soggiorni lunghi); viaggiatori vulnerabili e cane guida;
+    assicurazione di viaggio e sanitaria dentro e fuori dall'UE, prestiti consolari; pacchetti
+    turistici, recesso e obblighi del tour operator. "Documenti di viaggio": passaporto e carta
+    d'identità per l'espatrio, CIE, documenti dei minori, furto o smarrimento all'estero e
+    documento di viaggio provvisorio (ETD), restituzione dei documenti ritrovati.
+
+    Sono due guide brevi, sette sezioni in tutto: **non** contengono schede sulle singole
+    malattie — per quelle rimandano al Ministero della Salute — né i requisiti di un Paese, che
+    stanno in get_entry_requirements e get_health_info.
+
+    La ricerca è per parole, non per significato: scrivi `query` con i termini che userebbe la
+    guida (`smarrimento passaporto estero`, `vaccinazioni gravidanza`). Restituisce le `top_k`
+    sezioni con più corrispondenze, ciascuna con il percorso nella guida e la pagina da citare.
+    Sono candidate, non risposte: usa solo quelle che rispondono davvero. Una lista vuota, o
+    nessuna sezione pertinente, vuol dire che le guide non trattano il tema: dillo invece di
+    rispondere a memoria.
+    """
+    try:
+        risultati, meta = await search_guides(query, top_k)
+    except SourceError as exc:
+        raise ToolError(f"[{exc.code}] Guide tematiche non disponibili: {exc}") from exc
+
+    return ToolResponse[list[GuideHit]](
+        topic="Guide tematiche",
+        data=risultati,
+        sources=guide_sources(),
         meta=meta,
     )
 

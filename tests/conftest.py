@@ -55,6 +55,15 @@ def austria_payload() -> dict:
     return load_fixture("AUT.json")
 
 
+@pytest.fixture(scope="session")
+def guide_payloads() -> dict[str, dict]:
+    """Le due guide tematiche, registrate dalla fonte il 15 settembre 2026."""
+    return {
+        nome: load_fixture(f"approfondimenti_{nome}.json")
+        for nome in ("preparaunviaggio", "documentidiviaggio")
+    }
+
+
 @pytest.fixture
 def albania(albania_payload: dict) -> CountrySheet:
     return CountrySheet.model_validate(albania_payload)

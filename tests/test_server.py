@@ -8,13 +8,15 @@ import pytest
 from fastmcp import Client
 
 from viaggiaresicuri_mcp.countries import reset_index
-from viaggiaresicuri_mcp.errors import SourceNotFound
+from viaggiaresicuri_mcp.errors import SourceNotFound, SourceUnavailable
 from viaggiaresicuri_mcp.client import Risposta
 from viaggiaresicuri_mcp.server import mcp
 
 
 @pytest.fixture(autouse=True)
-def fonte_finta(monkeypatch, country_records, albania_payload, austria_payload, alerts_payloads):
+def fonte_finta(
+    monkeypatch, country_records, albania_payload, austria_payload, alerts_payloads, guide_payloads
+):
     def risolvi(path: str):
         if path.endswith("lista_nazioni.json"):
             return country_records
@@ -23,6 +25,8 @@ def fonte_finta(monkeypatch, country_records, albania_payload, austria_payload, 
             if iso3 in alerts_payloads:
                 return alerts_payloads[iso3]
             return {"ultima_ora": [], "focus": []}
+        if path.startswith("/approfondimenti/"):
+            return guide_payloads[path.rsplit("/", 1)[-1].removesuffix(".json")]
         if path.endswith("/ALB.json"):
             return albania_payload
         if path.endswith("/AUT.json"):
@@ -66,6 +70,7 @@ class TestSuperficieDeiTool:
             "get_embassy_contacts",
             "get_practical_info",
             "get_allerte",
+            "search_general_information",
         }
 
     async def test_ogni_descrizione_elenca_i_contenuti(self):
@@ -205,6 +210,56 @@ class TestAllerte:
         descrizione = per_nome["get_allerte"]
         assert "anche se le allerte non sono state chieste" in descrizione
         assert "sprecata" in descrizione
+
+
+class TestInformazioniGenerali:
+    """L'unico tool senza Paese: sezioni delle guide tematiche, ciascuna con la sua citazione."""
+
+    async def test_ogni_risultato_porta_percorso_e_pagina(self):
+        payload = await chiama("search_general_information", query="assicurazione sanitaria estero")
+        assert payload["country"] is None
+        assert 1 <= len(payload["data"]) <= 3
+        for risultato in payload["data"]:
+            assert risultato["breadcrumb"].split(" > ")[0] in {"Preparare un viaggio", "Documenti di viaggio"}
+            assert "/approfondimenti-insights/" in risultato["page"]
+            assert risultato["text"]
+        punteggi = [r["score"] for r in payload["data"]]
+        assert punteggi == sorted(punteggi, reverse=True)
+
+    async def test_le_fonti_sono_le_due_guide_consultate(self):
+        payload = await chiama("search_general_information", query="passaporto")
+        assert {s["data"].rsplit("/", 1)[-1] for s in payload["sources"]} == {
+            "preparaunviaggio.json",
+            "documentidiviaggio.json",
+        }
+        assert "verificare le indicazioni ufficiali" in payload["notice"]
+        assert payload["meta"]["cache_status"] == "fresh"
+
+    async def test_top_k_arriva_al_massimo_a_cinque(self):
+        payload = await chiama("search_general_information", query="viaggio", top_k=5)
+        assert len(payload["data"]) == 5
+        with pytest.raises(Exception):
+            await chiama("search_general_information", query="viaggio", top_k=6)
+
+    async def test_nessuna_parola_in_comune_e_una_lista_vuota(self):
+        payload = await chiama("search_general_information", query="criptovalute")
+        assert payload["data"] == []
+
+    async def test_guide_irraggiungibili_senza_copia_e_un_errore_esplicito(self, monkeypatch):
+        async def giu(path: str, condizionali=None):
+            raise SourceUnavailable(f"{path} non raggiungibile")
+
+        monkeypatch.setattr("viaggiaresicuri_mcp.client._scarica", giu)
+        with pytest.raises(Exception) as exc:
+            await chiama("search_general_information", query="dengue")
+        assert "source_unavailable" in str(exc.value)
+
+    async def test_la_descrizione_dice_che_la_ricerca_e_per_parole(self):
+        async with Client(mcp) as client:
+            per_nome = {t.name: (t.description or "").lower() for t in await client.list_tools()}
+        descrizione = per_nome["search_general_information"]
+        assert "non legate a un paese" in descrizione
+        assert "per parole" in descrizione
 
 
 class TestAvvioDelServer:

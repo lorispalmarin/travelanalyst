@@ -1,0 +1,237 @@
+[
+  {
+    "id": 1,
+    "domanda": "Un cliente ha perso il passaporto all'estero: che documento gli possono rilasciare per rientrare in Italia?",
+    "risposta_in": {
+      "documentidiviaggio/furtosmarrimentodidocumenti": "un nuovo Passaporto oppure un Documento di viaggio provvisorio (c.d.ETD - Emergency Travel Document (provvisorio) può essere rilasciato"
+    }
+  },
+  {
+    "id": 2,
+    "domanda": "Se i documenti rubati durante un viaggio vengono ritrovati, a chi vengono restituiti?",
+    "risposta_in": {
+      "documentidiviaggio/restituzionecarateidenta": "vengono di norma restituiti agli Uffici consolari nella cui circoscrizione è avvenuto il furto o lo smarrimento"
+    }
+  },
+  {
+    "id": 3,
+    "domanda": "Per quanto tempo il consolato tiene i documenti ritrovati prima di distruggerli?",
+    "risposta_in": {
+      "documentidiviaggio/restituzionecarateidenta": "Trascorso il periodo massimo di un anno di giacenza"
+    }
+  },
+  {
+    "id": 4,
+    "domanda": "Un bambino di 10 anni può andare all'estero con i nonni, senza i genitori?",
+    "risposta_in": {
+      "documentidiviaggio/documentiperviaggiallesteroperminori": "Dichiarazione di Accompagnamento dei genitori o di chi ne fa le veci, vistata da"
+    }
+  },
+  {
+    "id": 5,
+    "domanda": "Un minorenne può viaggiare all'estero con la sola carta d'identità?",
+    "risposta_in": {
+      "documentidiviaggio/documentiperviaggiallesteroperminori": "documento di viaggio individuale (Passaporto individuale oppure Carta di Identità valida per"
+    }
+  },
+  {
+    "id": 6,
+    "domanda": "Per quanto tempo vale al massimo la dichiarazione di accompagnamento di un minore?",
+    "risposta_in": {
+      "documentidiviaggio/documentiperviaggiallesteroperminori": "con destinazione determinata e non può superare i 6(sei) mesi"
+    }
+  },
+  {
+    "id": 7,
+    "domanda": "Si può viaggiare con la ricevuta della carta d'identità elettronica in attesa della CIE?",
+    "risposta_in": {
+      "documentidiviaggio/documentiperviaggiallestero": "la ricevuta della Carta di Identità Elettronica (CIE) NON è utilizzabile come documento di viaggio"
+    }
+  },
+  {
+    "id": 8,
+    "domanda": "Fino a quando si può ancora espatriare con la vecchia carta d'identità di carta?",
+    "risposta_in": {
+      "documentidiviaggio/documentiperviaggiallestero": "cesseranno in ogni caso di avere validità il 3 agosto 2026"
+    }
+  },
+  {
+    "id": 9,
+    "domanda": "Un cliente ha la carta d'identità scaduta e parte tra pochi giorni: il Comune può dargli un documento valido per l'estero?",
+    "risposta_in": {
+      "documentidiviaggio/documentiperviaggiallestero": "i Comuni italiani potranno rilasciare un documento di identità provvisorio cartaceo"
+    }
+  },
+  {
+    "id": 10,
+    "domanda": "A chi bisogna rivolgersi per ottenere un visto?",
+    "risposta_in": {
+      "documentidiviaggio/documentiperviaggiallestero": "oppure al proprio Agente di Viaggio"
+    }
+  },
+  {
+    "id": 11,
+    "domanda": "Quanto tempo prima della partenza va fatto il consulto medico?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "Questo consulto dovrebbe avvenire almeno 4-6 settimane prima della partenza"
+    }
+  },
+  {
+    "id": 12,
+    "domanda": "Quante scorte delle proprie medicine abituali conviene mettere in valigia?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "portare eventuali trattamenti abituali possibilmente in quantità sufficiente per tre mesi"
+    }
+  },
+  {
+    "id": 13,
+    "domanda": "Un cliente diabetico deve portare siringhe in aereo: gli serve un certificato medico?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "Certificato che attesti la necessità di trasportare alcuni dispositivi medicali (per es. siringhe)"
+    }
+  },
+  {
+    "id": 14,
+    "domanda": "Cos'è la tessera TEAM e in quali Paesi vale?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "dà diritto ai cittadini dei 27 Stati membri"
+    }
+  },
+  {
+    "id": 15,
+    "domanda": "Per un trasferimento di lavoro di lunga durata possono chiedere un test dell'HIV?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "la certificazione che attesta la negatività degli anticorpi per il virus"
+    }
+  },
+  {
+    "id": 16,
+    "domanda": "Un cliente non vedente viaggia con il cane guida: cosa deve verificare prima di partire?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "si raccomanda di controllare se nel Paese di destinazione sono previsti periodi di quarantena per gli animali"
+    }
+  },
+  {
+    "id": 17,
+    "domanda": "Dove si trovano informazioni aggiornate sulle malattie infettive dei viaggiatori?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "si può consultare la pagina dedicata del Ministero della Salute - Malattie infettive dei viaggiatori"
+    }
+  },
+  {
+    "id": 18,
+    "domanda": "Quali viaggiatori devono parlare con il medico prima di partire perché più fragili?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "come i bambini, gli anziani, le donne incinte e le persone con sistema immunitario compromesso"
+    }
+  },
+  {
+    "id": 19,
+    "domanda": "Se per motivi di salute non si può fare il vaccino della febbre gialla, cosa serve?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "Esenzione dalla vaccinazione per la Febbre Gialla (per paesi che la richiedono obbligatoriamente)"
+    }
+  },
+  {
+    "id": 20,
+    "domanda": "Dove bisogna andare prima di un viaggio in un Paese con malattie infettive?",
+    "risposta_in": {
+      "preparaunviaggio/saluteinviaggio": "si consiglia di recarsi in un ambulatorio di Medicina del Viaggiatore"
+    }
+  },
+  {
+    "id": 21,
+    "domanda": "Fuori dall'Unione Europea le cure mediche sono gratuite?",
+    "risposta_in": {
+      "preparaunviaggio/assicurazionediviaggio": "Nei Paesi dove non c'è un accordo apposito, l'assistenza sanitaria non è gratuita."
+    }
+  },
+  {
+    "id": 22,
+    "domanda": "Cosa deve coprire la polizza sanitaria per un viaggio fuori dall'Europa?",
+    "risposta_in": {
+      "preparaunviaggio/assicurazionediviaggio": "un adeguato massimale, tale da coprire non solo le spese di cure mediche"
+    }
+  },
+  {
+    "id": 23,
+    "domanda": "Se un cliente si ammala all'estero e non riesce a pagare, il consolato copre le spese?",
+    "risposta_in": {
+      "preparaunviaggio/assicurazionediviaggio": "non possono garantire pagamenti diretti di carattere privato"
+    }
+  },
+  {
+    "id": 24,
+    "domanda": "Entro quanto tempo vanno restituiti i prestiti concessi dal consolato?",
+    "risposta_in": {
+      "preparaunviaggio/assicurazionediviaggio": "rimborsati allo Stato dopo il rientro in Italia, di norma entro 90 giorni"
+    }
+  },
+  {
+    "id": 25,
+    "domanda": "L'assicurazione di viaggio serve solo per le spese mediche o copre anche i bagagli?",
+    "risposta_in": {
+      "preparaunviaggio/assicurazionediviaggio": "proteggere contro il furto o smarrimento dei bagagli"
+    }
+  },
+  {
+    "id": 26,
+    "domanda": "La copertura inclusa in un pacchetto turistico basta o conviene farne un'altra?",
+    "risposta_in": {
+      "preparaunviaggio/assicurazionediviaggio": "controllate attentamente il contenuto delle assicurazioni sanitarie comprese nei pacchetti di viaggio"
+    }
+  },
+  {
+    "id": 27,
+    "domanda": "Un cliente ha paura di partire per la situazione internazionale: può disdire senza penali?",
+    "risposta_in": {
+      "preparaunviaggio/pacchittituristici": "Gli stati soggettivi e personali, come il timore o la preoccupazione, non valgono da soli a giustificare un recesso senza penali."
+    }
+  },
+  {
+    "id": 28,
+    "domanda": "Un avviso della Farnesina dà diritto ad annullare il contratto di viaggio?",
+    "risposta_in": {
+      "preparaunviaggio/pacchittituristici": "hanno valore informativo e precauzionale, ma non forza di legge tale da incidere su un contratto"
+    }
+  },
+  {
+    "id": 29,
+    "domanda": "Che obblighi ha il tour operator verso un viaggiatore in difficoltà all'estero?",
+    "risposta_in": {
+      "preparaunviaggio/pacchittituristici": "fornendo informazioni riguardo a servizi sanitari, autorità locali, assistenza consolare"
+    }
+  },
+  {
+    "id": 30,
+    "domanda": "La Farnesina interviene nelle controversie fra cliente e agenzia di viaggio?",
+    "risposta_in": {
+      "preparaunviaggio/pacchittituristici": "rimane estraneo a qualunque rapporto di natura privatistica"
+    }
+  },
+  {
+    "id": 31,
+    "domanda": "Che cos'è la dengue e come si trasmette?",
+    "risposta_in": {}
+  },
+  {
+    "id": 32,
+    "domanda": "Quali vaccinazioni sono obbligatorie per il Kenya?",
+    "risposta_in": {}
+  },
+  {
+    "id": 33,
+    "domanda": "Come ci si protegge dalle punture di zanzara?",
+    "risposta_in": {}
+  },
+  {
+    "id": 34,
+    "domanda": "Cosa si fa in caso di morso di serpente?",
+    "risposta_in": {}
+  },
+  {
+    "id": 35,
+    "domanda": "Quanto costa un volo per Bangkok a marzo?",
+    "risposta_in": {}
+  }
+]

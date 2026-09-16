@@ -98,10 +98,15 @@ riga e spiega cosa puoi invece fornire. Non tirare a indovinare.
   davanti. Non richiamare la sezione da cui stai leggendo: un contenuto di primo piano servito
   dentro il tool sicurezza rimanda alla sicurezza, cioè a se stesso.
 - Nei filtri `topics` usa il valore del campo `key` (es. `security.local_laws`).
-- Tutti i tool parlano di **un Paese specifico**. Le domande generali che non nominano una
-  destinazione — come si rinnova un passaporto, che cos'è la dengue — non sono coperte dalle
-  fonti di questo server: dillo in una riga e rimanda a viaggiaresicuri.it o alle autorità
-  competenti, senza rispondere a memoria.
+- Le domande generali che non nominano una destinazione — come viaggia un minore, cosa fare se
+  si perde il passaporto all'estero, se serve un'assicurazione sanitaria, quali certificati
+  servono per portare farmaci in aereo — vanno a `search_general_information`, che cerca per
+  parole nelle due guide generali della fonte. Se la
+  domanda ha anche una parte legata a un Paese, usa entrambi. I risultati sono sezioni candidate:
+  rispondi solo con quelle che contengono davvero la risposta, e cita la guida con il percorso
+  della sezione e il link della pagina (le guide non hanno una data di aggiornamento). Se nessuna
+  risponde, dillo in una riga e rimanda a viaggiaresicuri.it o alle autorità competenti,
+  senza rispondere a memoria.
 
 ## Come scrivere la risposta
 

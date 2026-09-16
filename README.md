@@ -3,6 +3,10 @@
 Un server MCP che espone come tool le schede paese e gli avvisi di viaggiaresicuri.it, e un
 assistente LangChain per il customer care che risponde solo attraverso quei tool, citando fonte e data.
 
+> **Ramo `search-general-information`, non unito a `main`.** Aggiunge un nono tool che cerca nelle
+> due guide generali della fonte. La ricerca funziona, ma i numeri dicono che su quel corpus non
+> serve: [Ricerca nelle guide generali: la misura](#ricerca-nelle-guide-generali-la-misura).
+
 ```mermaid
 flowchart LR
     subgraph assistente["assistant/ — ambiente .venv-assistant"]
@@ -13,7 +17,7 @@ flowchart LR
     end
     AD -- "MCP su HTTP /mcp" --> SRV
     subgraph server["viaggiaresicuri_mcp/ — ambiente .venv"]
-        SRV["server.py<br/>8 tool FastMCP"] --> CO["countries.py<br/>nome → ISO3"]
+        SRV["server.py<br/>9 tool FastMCP"] --> CO["countries.py<br/>nome → ISO3"]
         SRV --> SH["sheet.py<br/>viste sulla scheda"]
         SRV --> AL["alerts.py<br/>tre stati"]
         CO & SH & AL --> CL["client.py<br/>unico punto di rete"]
@@ -36,7 +40,8 @@ flowchart LR
 9. [Comportamento in caso di errore](#comportamento-in-caso-di-errore)
 10. [Agente proattivo (design)](#agente-proattivo-design)
 11. [Assunzioni, limiti noti, non implementato](#assunzioni-limiti-noti-non-implementato)
-12. [Struttura del repo](#struttura-del-repo)
+12. [Ricerca nelle guide generali: la misura](#ricerca-nelle-guide-generali-la-misura)
+13. [Struttura del repo](#struttura-del-repo)
 
 ## Quickstart
 
@@ -166,13 +171,13 @@ lettera, link a `ALB_contactDetails.pdf`, nessuna chiamata a `get_allerte`, che 
 | LangChain e FastMCP | `create_agent` + `langchain-mcp-adapters` ([agent.py](assistant/agent.py)); `FastMCP` su HTTP ([server.py](viaggiaresicuri_mcp/server.py)) | |
 | Disclaimer | campo `notice` in ogni risposta dei tool; il prompt impone di chiudere ogni risposta con l'avvertenza | |
 | Verificabilità | `sources` (pagina, JSON, PDF), `updated_at`, `meta`; la CLI e la UI mostrano ogni chiamata ai tool | |
-| Domande generali senza un Paese | — | **non coperte**: le guide tematiche non sono esposte, vedi [ADR 2](#adr-2-nessun-rag-decide-la-forma-del-contenuto) |
+| Domande generali senza un Paese | `search_general_information` → guide "Preparare un viaggio" e "Documenti di viaggio" | coperte su questo ramo; misura e conclusione in [Ricerca nelle guide generali](#ricerca-nelle-guide-generali-la-misura) |
 | Design dell'agente proattivo | [docs/PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md) | solo design, non implementato |
 
 ## Architettura
 
 **Server MCP** ([viaggiaresicuri_mcp/](viaggiaresicuri_mcp/)), l'unico componente che conosce la fonte.
-- `server.py`: gli 8 tool, le istruzioni del server, gli errori tradotti in `ToolError` con codice.
+- `server.py`: i 9 tool, le istruzioni del server, gli errori tradotti in `ToolError` con codice.
 - `countries.py`: nome → ISO3 (ISO3, ISO2, nome ufficiale italiano o un suo pezzo non ambiguo); con
   più corrispondenze restituisce i candidati.
 - `sheet.py` e `alerts.py`: scheda validata con vista per sezione e fallback sul primo piano; avvisi
@@ -259,6 +264,7 @@ sequenceDiagram
 | `get_embassy_contacts(country)` | recapiti di ambasciata e consolati + PDF dei soli contatti | un cliente in difficoltà, documenti persi o rubati |
 | `get_practical_info(country)` | dati del Paese, informazioni utili, numeri di emergenza locali | valuta, fuso orario, prefissi, polizia e ambulanza |
 | `get_allerte(iso3)` | avvisi in corso con stato e frase pronta | "posso partire adesso", richieste esplicite di avvisi, e ogni volta che un avviso cambierebbe la risposta; una sola chiamata per Paese nella conversazione |
+| `search_general_information(query, top_k?)` | sezioni delle due guide generali, con percorso e pagina da citare | domande che non nominano un Paese: documenti, minori, assicurazione, pacchetti turistici |
 
 **Principio di design.** Gli endpoint utili sono tre, ma un tool per endpoint restituirebbe la
 scheda intera: nel censimento su 222 Paesi circa 4.900 token in mediana e 18.700 al massimo
@@ -266,7 +272,7 @@ scheda intera: nel censimento su 222 Paesi circa 4.900 token in mediana e 18.700
 unico contratto, qualche centinaio di token ciascuna. Scendere al singolo nodo moltiplicherebbe i
 tool; per restringere basta `topics`.
 
-Con otto tool il modello sceglie leggendo le **docstring**, scritte come istruzioni operative: cosa
+Con nove tool il modello sceglie leggendo le **docstring**, scritte come istruzioni operative: cosa
 contiene la sezione e cosa no (droga e farmaci stanno sotto sicurezza, le domande su una malattia in
 sé non sono coperte), quando `get_allerte` serve e quando è una chiamata sprecata. `find_country` è
 volutamente severo, senza alias né fuzzy matching: "Olanda" o "Bali" le traduce il modello, e un
@@ -368,6 +374,12 @@ primo posto "Restituzione di carte identità italiane rinvenute all'estero".
 il server non riceve più alcuna credenziale di modello. Il prezzo è che le domande generali senza
 un Paese non hanno risposta, e il prompt obbliga a dirlo. La sostituzione naturale, due tool
 `list`/`get` sulle sezioni delle guide, non è scritta.
+
+**Aggiornamento del 16/09/2026.** Due cose di questo ADR non stanno più in piedi. Le guide
+generali vive sono "Preparare un viaggio" e "Documenti di viaggio", non "Salute in viaggio", che la
+fonte serve ancora come JSON ma non pubblica più. E la ricerca lessicale è stata scritta e
+misurata invece che solo ipotizzata: i numeri, e il motivo per cui si ferma qui, stanno in
+[Ricerca nelle guide generali](#ricerca-nelle-guide-generali-la-misura).
 
 ### ADR 3. TTL unico, con rivalidazione condizionale
 
@@ -483,6 +495,55 @@ Solo progettato, non implementato; il design completo è in [docs/PROACTIVE_AGEN
 - *Parsing dei PDF:* il contenuto si sovrappone al JSON; restano link da inoltrare.
 - *Tool `list`/`get` sulle guide tematiche:* il sostituto giusto della ricerca semantica, non scritto.
 - *Agente proattivo:* solo design. Manca la tabella degli avvisi già visti.
+
+## Ricerca nelle guide generali: la misura
+
+Questo ramo aggiunge la ricerca sulle informazioni non legate a un Paese e non è stato unito a
+`main`. La ricerca funziona; è il corpus a non chiederla. Qui ci sono i numeri.
+
+**Cosa è stato costruito.** `search_general_information(query, top_k)`: le due guide arrivano dal
+client con cache, vengono validate, l'albero viene appiattito in sezioni e interrogato con un
+indice BM25 in memoria. Niente embedding e niente artefatti su disco: l'indice si ricostruisce a
+ogni chiamata in **2,3 ms**.
+
+**Prima scoperta: una delle due guide non è più pubblicata.**
+`/approfondimenti/saluteinviaggio.json` risponde 200 con 216 KB e 48 sezioni — malattie del
+viaggiatore, insetti, alimentazione — ma il sito non la mostra più: nel bundle Angular non esiste
+la rotta `approfondimenti-insights/saluteinviaggio`, il metodo che scarica quel JSON è definito e
+non viene chiamato da nessuna pagina, e il link rimasto nel footer ricade nel redirect alla home.
+Ultima modifica 23/06/2026, contro 08/07 di `preparaunviaggio` e 06/08 di `documentidiviaggio`. Le
+guide generali vive sono quindi due, e valgono **7 sezioni per 3.866 token** di testo.
+
+**Il set di prova.** 35 domande scritte a mano leggendo le sezioni, prima di eseguire qualunque
+ricerca: 30 con la risposta nelle guide, 5 fuori copertura. Ogni etichetta indica la sezione e un
+estratto letterale del paragrafo, e un test verifica che quell'estratto sia davvero lì: se la
+fonte cambia fallisce l'etichetta, non la metrica.
+
+| | hit@1 | hit@3 | hit@5 | MRR@5 |
+|---|---|---|---|---|
+| 30 domande coperte | 25 (83%) | 29 (97%) | 30 (100%) | 0,901 |
+
+Gli errori non sono sinonimi ma vicinanza di materia: documenti contro minori contro restituzione,
+assicurazione contro pacchetti turistici. Delle 5 domande fuori copertura due non restituiscono
+nulla (dengue, zanzare) e tre restituiscono risultati con punteggi 4,13, 2,87 e 2,12, contro una
+mediana di 6,23 sulle domande coperte: le fasce si toccano, quindi una soglia sul punteggio non
+separa e il filtro resta all'agente.
+
+**Perché si ferma qui.** Una risposta con tre risultati costa in mediana **2.910 token** (3.266 al
+massimo), cinque ne costano 4.168. Il corpus intero è 3.866 token e una singola sezione sta fra
+221 e 922. I primi tre risultati sono già tre quarti di tutto quello che esiste: un filtro che non
+filtra, in cambio di un motore da mantenere. Su `main` lo stesso contratto è servito da due tool
+`list`/`get`: l'elenco dei sette titoli costa una cinquantina di token, la scelta la fa il modello
+ed è deterministica.
+
+**Quando tornerebbe utile.** Sul corpus abbandonato — 52 sezioni, 178.000 caratteri — la stessa
+ricerca dava hit@3 39/43 e risposte da 3.329 token in mediana: lì il filtro serviva davvero. Se le
+guide crescono (`avvertenze.json` ne aggiungerebbe due) o se la guida sanitaria torna pubblicata,
+questo ramo è pronto.
+
+**Cosa resta valido comunque:** la validazione del payload, l'appiattimento in sezioni con
+percorso e pagina da citare, e il set di domande, che misura qualunque meccanismo gli si metta
+sotto.
 
 ## Struttura del repo
 
