@@ -102,6 +102,20 @@ class TestSystemPrompt:
         assert "senza rispondere a memoria" in testo
 
 
+class TestTrasparenzaIA:
+    """AI Act: chi usa l'assistente deve sapere che risponde un sistema di IA e che può sbagliare."""
+
+    def test_pagina_web_e_cli_lo_dicono_con_le_stesse_parole(self):
+        from pathlib import Path
+
+        import assistant
+        from assistant.cli import AVVISO_IA
+
+        pagina = (Path(assistant.__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+        assert "intelligenza artificiale" in AVVISO_IA and "errori" in AVVISO_IA
+        assert AVVISO_IA in pagina
+
+
 class _AgenteFinto:
     """Riproduce la forma dello stream di LangGraph, senza modello né rete."""
 

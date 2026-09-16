@@ -31,6 +31,12 @@ Esempi di domande:
   Si può partire per la Thailandia adesso?
 """.strip()
 
+# Trasparenza verso chi usa l'assistente (AI Act): la stessa frase sta nella pagina web.
+AVVISO_IA = (
+    "Risposte generate da un sistema di intelligenza artificiale: possono contenere errori. "
+    "Verifica sempre sulle fonti ufficiali citate."
+)
+
 
 def _silenzia_log() -> None:
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
@@ -74,6 +80,7 @@ async def repl() -> int:
     try:
         async with apri_assistente(settings) as assistente:
             print(f"\n{BOLD}Assistente Viaggiare Sicuri{RESET}")
+            print(AVVISO_IA)
             print(f"{GRIGIO}{settings.descrizione} · {len(assistente.tools)} tool · /aiuto per i comandi{RESET}\n")
 
             while True:
