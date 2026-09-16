@@ -73,26 +73,7 @@ ritirato, il thread e il riepilogo del mattino lo segnalano come «non più pubb
 
 ## 2. Architettura
 
-```mermaid
-flowchart LR
-    VS["viaggiaresicuri.it"]
-    MCP["server MCP<br/>già costruito"]
-    CH["canale del team<br/>Slack o Teams"]
-    OP(["operatore"])
-
-    subgraph AG["Heimdall"]
-        SON["sonda"]
-        RIL["rilevatore<br/>cosa è cambiato"]
-        TRI["triage<br/>categoria e urgenza"]
-        NOT["notifica<br/>chi avvisare, dove"]
-        MEM[("memoria<br/>Paesi seguiti,<br/>avvisi già visti")]
-    end
-
-    VS --> MCP --> SON --> RIL --> TRI --> NOT --> CH --> OP
-    MEM -.- RIL
-    MEM -.- NOT
-    OP -->|segue un Paese| MEM
-```
+![Flusso Heimdall](heimdall.png)
 
 Il giro, in cinque passi:
 
