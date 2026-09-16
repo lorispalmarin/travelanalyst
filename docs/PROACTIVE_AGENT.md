@@ -3,13 +3,12 @@
 Documento di design.
 
 1. [L'idea](#1-lidea)
-3. [Architettura](#3-architettura)
-4. [Componenti](#4-componenti)
-5. [Scheduling](#5-scheduling)
-6. [Duplicati e falsi positivi](#6-duplicati-e-falsi-positivi)
-7. [Canale di notifica](#7-canale-di-notifica)
-8. [Valutazioni](#8-valutazioni)
-9. [Piano di implementazione](#9-piano-di-implementazione)
+2. [Architettura](#2-architettura)
+3. [Componenti](#3-componenti)
+4. [Scheduling](#4-scheduling)
+5. [Duplicati e falsi positivi](#5-duplicati-e-falsi-positivi)
+6. [Canale di notifica](#6-canale-di-notifica)
+7. [Limiti dichiarati](#7-limiti-dichiarati)
 
 ## 1. L'idea
 
@@ -68,760 +67,121 @@ ritirato, il thread e il riepilogo del mattino lo segnalano come «non più pubb
    canale. Se il raggruppamento sbaglia, il messaggio finisce nel posto sbagliato, ma arriva.
 3. **Il silenzio si dichiara.** Se la fonte o il server non rispondono, il canale lo sa: "nessuna
    allerta" non deve mai voler dire "non ho potuto guardare". È la stessa distinzione che
-   l'assistente fa con `non_verificabile`.
+   l'assistente fa quando non può verificare.
 4. **Nel messaggio fa fede la fonte.** Titolo, date, link e recapiti vengono dalla Farnesina; quello
    che scrive il modello è etichettato come tale e ancorato a una citazione verificata.
 
-## 3. Architettura
+## 2. Architettura
 
 ```mermaid
 flowchart LR
-    OP(["operatore"])
+    VS["viaggiaresicuri.it"]
+    MCP["server MCP<br/>già costruito"]
     CH["canale del team<br/>Slack o Teams"]
-    VS["viaggiaresicuri.it<br/>totale.json, ultima_ora/ISO3"]
-    LLM["gpt-5.6-luna"]
+    OP(["operatore"])
 
-    subgraph G_ASS["assistente, esistente"]
-        CLI["CLI<br/>/segui /seguiti /smetti"]
-    end
-
-    subgraph G_MCP["server MCP, esistente"]
-        TOOL["get_ultimi_avvisi (nuovo)<br/>get_allerte, get_embassy_contacts"]
-        CACHE[("client e cache<br/>ETag, stale-if-error")]
-    end
-
-    subgraph G_SEN["Heimdall, processo nuovo"]
-        SCH["scheduler<br/>e watchdog"]
+    subgraph AG["Heimdall"]
         SON["sonda"]
-        RIL["rilevatore"]
-        TRI["triage"]
-        POL["politica di notifica"]
-        DB[("stato SQLite<br/>seguiti, avvisi, eventi, outbox")]
-        DIS["dispatcher"]
-        API["API<br/>seguiti e feedback"]
+        RIL["rilevatore<br/>cosa è cambiato"]
+        TRI["triage<br/>categoria e urgenza"]
+        NOT["notifica<br/>chi avvisare, dove"]
+        MEM[("memoria<br/>Paesi seguiti,<br/>avvisi già visti")]
     end
 
-    SCH --> SON
-    SON -->|MCP su HTTP| TOOL
-    TOOL --> CACHE --> VS
-    SON --> RIL --> TRI --> POL --> DB
-    DB -.->|stato precedente| RIL
-    TRI -.-> LLM
-    DB --> DIS --> CH --> OP
-    OP --> CLI -->|HTTP| API --> DB
-    CH -->|utile, non utile| API
+    VS --> MCP --> SON --> RIL --> TRI --> NOT --> CH --> OP
+    MEM -.- RIL
+    MEM -.- NOT
+    OP -->|segue un Paese| MEM
 ```
 
-**Un giro, passo per passo.**
+Il giro, in cinque passi:
 
-1. Lo **scheduler** avvia la **sonda** ogni 15 minuti e mezzo.
-2. La sonda chiama `get_ultimi_avvisi` sul server MCP, che rivalida `totale.json` con l'ETag. Quasi
-   sempre la risposta è 304, e il giro finisce qui.
-3. Il **rilevatore** confronta gli id ricevuti con lo stato: gli id mai visti diventano avvisi
-   nuovi, oppure versioni nuove di un evento già noto.
-4. Il **triage** classifica ogni versione nuova: il modello propone categoria, urgenza, area e
-   sintesi, e le regole sul titolo possono alzare l'urgenza.
-5. La **politica di notifica** incrocia i cambiamenti con i seguiti attivi e sceglie per ciascuno:
-   voce nel messaggio del giro, risposta in un thread, riga nel riepilogo, oppure niente se il
-   Paese non è seguito.
-6. Lo stato aggiornato e le notifiche da inviare si scrivono nella **stessa transazione**.
-7. Il **dispatcher** invia al canale e salva il riferimento del messaggio, che serve ai thread
-   successivi.
+1. La **sonda** chiede gli ultimi avvisi al server MCP già costruito, che resta l'unico componente a
+   parlare con la fonte: Heimdall eredita cache, rivalidazione e gestione degli errori senza
+   riscriverle.
+2. Il **rilevatore** confronta quello che vede con la memoria degli avvisi già visti e riconosce tre
+   cose: avviso nuovo, aggiornamento di un evento noto, avviso ritirato. Quasi sempre non è cambiato
+   niente e il giro finisce qui.
+3. Il **triage** classifica le novità: categoria, urgenza e una sintesi breve.
+4. La **notifica** guarda chi segue quel Paese e decide dove finisce il messaggio: canale, thread di
+   un evento già segnalato, oppure riepilogo del mattino.
+5. L'invio passa da una **coda**: si decide di notificare scrivendo una riga, non chiamando un
+   servizio. Così un canale che non risponde non perde la notifica, e un riavvio non la manda due
+   volte.
 
-Un secondo giro, ogni ora, chiama `get_allerte` sui soli Paesi seguiti: il feed mostra gli avvisi
-che compaiono, non quelli ritirati.
+Heimdall è un processo a sé, accanto al server MCP e all'assistente, e ne è un client come
+l'assistente: il server resta l'unico posto che conosce la fonte, e le due parti del progetto si
+tengono insieme invece di essere due esercizi scollegati.
 
-**Dove gira.** Un terzo processo, `travelanalyst-Heimdall`, accanto a server e assistente. È un client del server MCP
-come l'assistente: stesse dipendenze e stesse credenziali del modello, che la traccia riserva appunto
-ad assistente e agente. Lo stato è un file SQLite suo, `var/Heimdall.sqlite3`, separato dalla cache
-del server: la cache si può cancellare in qualsiasi momento, lo storico di cosa è stato notificato a
-chi no.
+## 3. Componenti
 
-**Cosa esiste e cosa manca.**
+| Componente | Cosa fa | La scelta |
+|---|---|---|
+| **Paesi seguiti** | un operatore segue un Paese fino a una data, con il riferimento della pratica | la scadenza chiude il seguito da sola: senza, il canale si riempie di Paesi che non interessano più |
+| **Sonda** | ogni 15 minuti legge il feed globale degli avvisi, ogni ora ricontrolla i Paesi seguiti | passa dal server MCP e non dalla rete: una sola normalizzazione degli avvisi, per l'assistente e per Heimdall |
+| **Memoria** | gli avvisi già visti e le notifiche già fatte | è l'unico stato del progetto, e serve perché la fonte pubblica solo il presente: lo storico degli avvisi non esiste, va costruito |
+| **Rilevatore** | distingue avviso nuovo, aggiornamento e ritiro | ragiona per **evento** e non per singolo avviso: la Farnesina pubblica un aggiornamento come avviso nuovo che sostituisce il precedente, e sono quasi la metà degli avvisi in circolazione |
+| **Triage** | assegna categoria (sicurezza, sanitaria, naturale, pratica) e urgenza (subito o riepilogo) | è l'unico punto in cui serve un modello: la categoria della fonte ha due valori e non distingue gli eventi naturali. La sintesi deve citare una frase dell'avviso, verificata alla lettera; i recapiti non passano mai dal modello |
+| **Notifica** | sceglie destinatari, momento e posto del messaggio | raggruppa per giro e usa i thread, così il volume ha un tetto per costruzione |
 
-| Pezzo | Stato |
+Il modello entra in un punto solo, dove serve leggere un testo. Tutto il resto — cosa è cambiato, chi
+avvisare, quando inviare — è deterministico, quindi prevedibile e verificabile.
+
+## 4. Scheduling
+
+- **Ogni 15 minuti il feed globale, ogni ora i Paesi seguiti.** Il feed elenca gli avvisi più recenti
+  di tutti i Paesi: una richiesta sola dice cosa è comparso ovunque. Il giro orario sui Paesi seguiti
+  serve a vedere gli avvisi *ritirati*, che nel feed non compaiono.
+- **Perché 15 minuti:** è la stessa soglia con cui l'assistente rivalida gli avvisi, quindi chiedere
+  più spesso restituirebbe la stessa copia. Il costo resta trascurabile perché la fonte risponde "non
+  è cambiato niente" a zero byte.
+- **Perché non fasce di frequenza per Paese**, con i Paesi a rischio interrogati più spesso: con un
+  feed globale non servono, e sarebbero una regola in più da mantenere e da spiegare.
+- **Quanto si aspetta:** al massimo un quarto d'ora dalla pubblicazione. È poco rispetto al ritardo
+  che pesa davvero, quello fra l'evento e la pubblicazione della Farnesina.
+
+## 5. Duplicati e falsi positivi
+
+Valgono le prime due regole della § 1: il triage decide *quando* notificare, la deduplica *dove*, e
+nessuno dei due decide *se*.
+
+| Caso | Cosa fa Heimdall |
 |---|---|
-| Client HTTP, cache, rivalidazione con ETag, stale-if-error ([client.py](../viaggiaresicuri_mcp/client.py)) | esiste: la sonda lo eredita passando dal server |
-| Validazione e normalizzazione degli avvisi: HTML in testo, `tsModifica` in data, `""` in `null` ([models.py](../viaggiaresicuri_mcp/models.py)) | esiste: Heimdall non scrive parser |
-| `get_allerte`, `get_embassy_contacts`, `find_country` | esistono |
-| `get_ultimi_avvisi` su `totale.json` | nuovo, nel server |
-| Sonda, rilevatore, triage, politica, outbox, dispatcher, API | nuovi, pacchetto `Heimdall/` |
-| Comandi `/segui`, `/seguiti`, `/smetti` | nuovi, nella CLI dell'assistente |
-
-## 4. Componenti
-
-### 4.1 Seguiti
-
-Un seguito è una riga: Paese, operatore, data di fine, nota. Si gestisce dalla CLI dell'assistente,
-che chiama l'API HTTP di Heimdall.
-
-```
-› /segui Perù 30/09 pratica-4812
-Segui Peru' fino al 30/09/2026 (pratica-4812): le novità arriveranno in #avvisi-viaggio.
-La fonte è stata consultata adesso e riporta 6 avvisi in corso per Peru'.
-  01/09  PERU’: STATO DI EMERGENZA NELL'AREA METROPOLITANA DI LIMA E NELLA PROVINCIA COSTITUZIONALE DI CALLAO
-  27/08  PERU': STATO DI EMERGENZA NEI DISTRETTI DI VILLA EL SALVADOR E VILLA MARÍA DEL TRIUNFO.
-  18/08  PERU': stato di emergenza post sisma in 17 Distretti di Huancavelica e Junín.
-  18/08  PERU': chiusura al traffico di un tratto della Panamericana Sud (Atico-Ocoña).
-  23/07  PERU': stato di emergenza in cinque Distretti di Junín.
-  01/07  PERU': STATO DI EMERGENZA NELLA PROVINCIA DI LIMA METROPOLITANA E NELLA PROVINCIA COSTITUZIONALE DEL CALLAO.
-```
-
-### 4.2 Scheduler e watchdog
-
-Un solo processo asyncio con APScheduler; l'API FastAPI gira nello stesso event loop.
-
-| Job | Quando | Cosa fa |
-|---|---|---|
-| `giro_feed` | ogni 930 s | `get_ultimi_avvisi`, poi rilevatore |
-| `giro_seguiti` | ogni ora, richieste distanziate | `get_allerte` per ogni Paese seguito, poi rilevatore |
-| `dispatcher` | ogni 10 s | invia le notifiche in attesa |
-| `riepilogo` | alle 08:30, ora italiana | il messaggio del mattino |
-| `scadenze` | alle 08:00 | chiude i seguiti scaduti |
-| `watchdog` | ogni 5 min | controlla l'ultimo giro riuscito |
-
-- **Watchdog.** Tre giri del feed falliti di fila, circa 45 minuti, producono un messaggio di
-  sospensione nel canale; il primo giro riuscito, un messaggio di ripresa e un `giro_seguiti`
-  immediato. Un giro è fallito se il tool risponde con un errore o se serve una copia stale.
-- **Chi sorveglia Heimdall.** A ogni giro riuscito parte un ping verso un monitor esterno (dead
-  man's switch). Se il processo si ferma, il suo silenzio è indistinguibile da una giornata
-  tranquilla: deve accorgersene qualcun altro.
-- **Una sola istanza.** Un lease in SQLite, rinnovato a ogni giro: durante un deploy la seconda
-  istanza aspetta invece di inviare in doppio.
-
-### 4.3 Sonda e `get_ultimi_avvisi`
-
-La sonda è un client MCP su HTTP verso `MCP_SERVER_URL`, come
-[mcp_tools.py](../assistant/mcp_tools.py), ma chiama i tool direttamente, senza modello. Ogni
-chiamata diventa un'**osservazione**: gli avvisi (id, Paese, titolo, testo normalizzato, data,
-`tipologia`), gli aggiornamenti di scheda, `cache_status`, e se l'osservazione è **completa** (il file
-di un Paese, che mostra anche i ritiri) o **parziale** (il feed, che mostra solo le comparse).
-
-- Un'osservazione `stale` non entra nel confronto: una copia locale non prova né che un avviso sia
-  nuovo né che sia stato ritirato.
-- Un errore del tool non diventa mai un'osservazione vuota, che il rilevatore leggerebbe come
-  "ritirati tutti".
-
-**Il tool nuovo.** `get_ultimi_avvisi` legge `/ultima_ora/totale.json`, il cui percorso è già in
-[config.py](../viaggiaresicuri_mcp/config.py), e risponde con lo stesso `ToolResponse` degli altri
-tool:
-
-- `avvisi`: la lista `ultima_ora`, validata con il modello `Alert` esistente;
-- `aggiornamenti_schede`: da `aggiornamentiSchedaPaese`, con Paese, data e sezioni cambiate (il
-  titolo della voce è l'elenco: "Requisiti di ingresso, Sicurezza"). L'id di queste voci è per Paese
-  (`AGGIORNAMENTO_SCHEDA_CHN`), non per aggiornamento, quindi la chiave è la coppia Paese e data;
-- `focus` si ignora: contiene una sola voce, del 2023, non legata a un Paese.
-
-Usa il TTL degli avvisi, 15 minuti: è lo stesso contenuto su un altro endpoint, non una seconda
-eccezione all'ADR 5. `Meta` guadagna `source_last_modified`, già salvato in cache, che serve a
-misurare il time-to-detect.
-
-Il tool non va all'assistente: [mcp_tools.py](../assistant/mcp_tools.py) lo esclude per nome. Letta
-da un modello, una lista troncata a 25 voci diventa facilmente "il Paese non ha avvisi"; aprirla
-all'assistente richiede un caso d'uso e un'eval suoi.
-
-### 4.4 Rilevatore
-
-Una funzione pura, `rileva(stato, osservazione) -> list[Cambiamento]`: niente rete, niente modello,
-si testa con i payload reali.
-
-| Cambiamento | Condizione | Esempio reale |
-|---|---|---|
-| `Nuovo` | id mai visto, nessun evento del Paese con la stessa radice negli ultimi 30 giorni | `35404`, eruzione del Krakatoa |
-| `Aggiornamento` | id mai visto, stessa radice di un evento del Paese aperto o ritirato da meno di 30 giorni | `35442`, Canada, che sostituisce `34711` |
-| `Modifica` | id noto, testo diverso (hash) | mai osservata; supportarla costa poche righe |
-| `Assenza`, poi `Ritiro` | un avviso attivo manca da un'osservazione completa; al secondo giro consecutivo è un ritiro | `35282`, Thailandia, inondazioni nel nord: nella fixture dei test, ritirato intorno all'11/09 |
-| `SchedaAggiornata` | coppia Paese e data mai vista | Croazia, 11/09: Sicurezza |
-
-**La radice del titolo**: minuscole, senza accenti né punteggiatura, senza il prefisso del Paese fino
-al primo `:` o `–`, senza tutto ciò che segue "aggiornamento".
-
-```
-CANADA: introduzione misure sanitarie di prevenzione.
-CANADA: introduzione misure sanitarie di prevenzione - aggiornamento.
-    → introduzione misure sanitarie di prevenzione
-
-UGANDA: malattia da virus Ebola (ceppo Bundibugyo) - aggiornamento nuove procedure.
-    → malattia da virus ebola ceppo bundibugyo
-```
-
-Sui 96 avvisi attivi nessun Paese ne ha due con la stessa radice: coerente con F2, l'aggiornamento
-prende il posto del precedente invece di affiancarlo.
-
-```python
-def rileva(stato: Stato, oss: Osservazione) -> list[Cambiamento]:
-    cambiamenti = []
-    for avviso in oss.avvisi:
-        noto = stato.avviso(avviso.id)
-        if noto is None:
-            evento = stato.evento_recente(avviso.iso3, radice(avviso.titolo), giorni=30)
-            cambiamenti.append(Aggiornamento(avviso, evento) if evento else Nuovo(avviso))
-        elif noto.hash_testo != hash_testo(avviso):
-            cambiamenti.append(Modifica(avviso, noto))
-    if oss.completa:
-        presenti = {a.id for a in oss.avvisi}
-        for attivo in stato.avvisi_attivi(oss.iso3):  # esclusi quelli già sostituiti
-            if attivo.id not in presenti:
-                cambiamenti.append(Assenza(attivo))   # Ritiro alla seconda assenza di fila
-    return cambiamenti
-```
-
-Tre invarianti:
-
-- confronta insiemi di id, mai date (F3);
-- non ritira un avviso su un'osservazione parziale, stale o isolata (F6);
-- registra gli avvisi di tutti i Paesi del feed, anche di quelli non seguiti. Chi inizia a seguire un
-  Paese trova lo storico già pronto, ed è anche lo storico degli avvisi che la fonte non conserva
-  ([Fonti e discovery](../README.md#fonti-e-discovery)).
-
-### 4.5 Triage
-
-Una chiamata al modello per ogni versione nuova di un avviso, in qualunque Paese: almeno 29 nei 30
-giorni al 16/09, 5 il 16 settembre. Stesso modello e stesso endpoint dell'assistente, con output
-strutturato (`with_structured_output` di LangChain).
-
-**Ingresso**: titolo; testo normalizzato (mediana 1.048 caratteri, massimo 7.500); Paese;
-`tipologia`, presentata al modello come indizio inaffidabile.
-
-**Uscita**:
-
-```python
-class Triage(BaseModel):
-    categoria: Literal["sicurezza", "sanitaria", "naturale", "pratica"]
-    urgenza: Literal["immediata", "riepilogo"]
-    area: str | None   # "nord del Paese", "Lima e Callao"; None se riguarda tutto il Paese
-    sintesi: str       # al massimo due frasi, solo da ciò che dice l'avviso
-    citazione: str     # la frase del testo che giustifica l'urgenza, copiata
-```
-
-**Criteri nel prompt**:
-
-| Urgenza | Quando |
-|---|---|
-| `immediata` | può cambiare un viaggio nei prossimi giorni: evento naturale in corso o imminente; disordini, conflitti, attentati, stato di emergenza; chiusura di aeroporti, frontiere o collegamenti; restrizioni d'ingresso in vigore subito; viaggi sconsigliati |
-| `riepilogo` | misure di screening o sorveglianza sanitaria; raccomandazioni, come l'assicurazione; regole su visti e procedure con decorrenza futura; avvisi stagionali; normative locali |
-
-`pratica` è una quarta categoria, fuori dalle tre della traccia ma reale nella fonte: visti in
-Thailandia e in Guinea, controlli di frontiera in Spagna, reperibilità del carburante. Non è
-un'emergenza, ma all'operatore serve.
-
-**Regole sul titolo.** Deterministiche; possono solo portare l'urgenza a `immediata`.
-
-```
-terremot  sism  eruzion  vulcan  tsunami  alluvion  inondazion  uragan  tifon  ciclon  incendi
-frana  attentat  colpo di stato  conflitto armato  coprifuoco  stato di emergenza
-stato di eccezione  evacuazion  ebola  colera  focolai
-chiusura … aeroporti / frontiere / confini   sospensione … voli   sconsiglia … viaggi
-```
-
-- Sul titolo scattano su 30 avvisi su 96: Ebola in 7, stato di emergenza in 6, incendi in 5, poi
-  terremoti, eruzioni, alluvioni, frane, chiusure di frontiere, conflitto armato. C'è un eccesso
-  accettato, "VIETNAM: stagione dei tifoni.", che è un avviso stagionale.
-- Estese al testo scatterebbero su 49, metà del feed: "ebola" e "focolai" compaiono nel testo di
-  tredici avvisi su misure sanitarie e di screening, che emergenze non sono. Per questo le regole
-  guardano solo il titolo e non decidono da sole.
-- Il modello copre il caso opposto: "SICUREZZA" per 7 Paesi del Golfo o "PAKISTAN: mobilitazioni."
-  non contengono parole chiave, e cosa sta succedendo si capisce solo leggendo il testo.
-
-**Controlli sull'uscita**, deterministici:
-
-- la `citazione` deve comparire alla lettera nel testo, a spazi normalizzati. Se non c'è, sintesi e
-  area si scartano e il messaggio mostra l'inizio del testo ufficiale;
-- una sintesi che contiene numeri di telefono si scarta: i recapiti arrivano dal PDF ufficiale, mai
-  dal modello;
-- l'urgenza finale è la più alta fra quella del modello e quella delle regole.
-
-**Se il modello non risponde** (errore, timeout, output non valido) l'avviso passa come `immediata`,
-senza sintesi, con l'etichetta "classificazione non disponibile". Un triage mancato produce un
-messaggio in più, mai uno in meno.
-
-Ogni esito si salva con il modello e la versione del prompt: sono i dati dell'eval (§ 8.3).
-
-### 4.6 Politica di notifica
-
-Per ogni cambiamento i destinatari sono gli operatori con un seguito attivo su quel Paese.
-
-| Cambiamento | L'evento è già nel canale? | Urgenza | Cosa succede |
-|---|---|---|---|
-| `Nuovo` | — | immediata | voce nel messaggio del giro, con la menzione |
-| `Nuovo` | — | riepilogo | riga nel riepilogo del mattino |
-| `Aggiornamento` o `Modifica` | sì | qualsiasi | risposta nel thread dell'evento, con la menzione |
-| `Aggiornamento` o `Modifica` | no | immediata | voce nel messaggio del giro: l'evento entra nel canale adesso |
-| `Aggiornamento` o `Modifica` | no | riepilogo | riga nel riepilogo |
-| `Ritiro` | sì | — | risposta nel thread, "non più pubblicato dalla Farnesina", e riga nel riepilogo |
-| `Ritiro` | no | — | riga nel riepilogo |
-| `SchedaAggiornata` | — | — | riga nel riepilogo, con le sezioni cambiate |
-| qualsiasi, Paese non seguito | — | — | nessun messaggio; l'avviso resta nello stato |
-
-**Un messaggio per giro.** Le voci immediate di uno stesso giro, anche di Paesi diversi, escono in un
-solo messaggio, raggruppate per Paese e con le menzioni (F5): i 7 Paesi del Golfo del 25/07 sarebbero
-stati un messaggio, non sette. Per costruzione ogni giro produce al più un messaggio nel canale; le
-risposte nei thread non si contano, perché nel canale non compaiono.
-
-**Composizione.** Titolo copiato; data dell'avviso e ora di rilevazione, separate (F3); etichette e
-sintesi del triage, dichiarate come generate; link alla pagina del Paese; link al PDF dei recapiti,
-preso da `get_embassy_contacts`; avvertenza. Tutto ciò che non viene dal triage viene dalla fonte.
-
-### 4.7 Outbox e dispatcher
-
-- La politica scrive le notifiche nella stessa transazione che aggiorna avvisi ed eventi. Un crash
-  fra la decisione e l'invio lascia una riga da inviare: né un avviso perso, né uno stato che dice
-  "notificato" senza esserlo.
-- Ogni notifica ha una chiave deterministica: il tipo più le coppie (evento, versione) che contiene.
-  Se un giro viene rifatto dopo un crash ricalcola la stessa chiave, e il vincolo `UNIQUE` impedisce
-  il doppione.
-- Il dispatcher invia, salva il riferimento del messaggio restituito dal canale e marca la riga come
-  inviata. Dopo cinque tentativi con backoff la riga diventa `fallita`, e il riepilogo lo riporta.
-- La consegna è **almeno una volta**: se il processo muore fra l'invio riuscito e la marcatura, al
-  riavvio il messaggio riparte. Le API di chat non accettano una chiave di idempotenza sull'invio; il
-  doppione è raro e riconoscibile, e lo si accetta.
-
-### 4.8 Stato
-
-Un file SQLite delHeimdall.
-
-| Tabella | Una riga è | Serve a |
-|---|---|---|
-| `seguiti` | un Paese seguito da un operatore fino a una data | scegliere i destinatari |
-| `avvisi` | un id visto almeno una volta, in qualunque Paese | differenza fra insiemi di id, assenze consecutive, time-to-detect |
-| `eventi` | una situazione che attraversa più id | thread, versioni, urgenza corrente |
-| `aggiornamenti_schede` | una coppia Paese e data vista nel feed | non ripetere la stessa riga nel riepilogo |
-| `triage` | una classificazione, per versione del testo | messaggi ed eval |
-| `notifiche` | un messaggio da inviare o inviato (outbox) | consegna, idempotenza, riferimenti dei thread |
-| `feedback` | un voto su un messaggio | precisione e allerte mancate |
-| `giri` | un giro della sonda e il suo esito | watchdog e copertura del monitoraggio |
-
-<details>
-<summary>Schema</summary>
-
-```sql
-CREATE TABLE seguiti (
-    id          INTEGER PRIMARY KEY,
-    iso3        TEXT NOT NULL,
-    operatore   TEXT NOT NULL,           -- email; l'adattatore la traduce nell'utente del canale
-    dal         TEXT NOT NULL,
-    fino_al     TEXT NOT NULL,           -- default +30 giorni, massimo +180
-    nota        TEXT,                    -- solo il riferimento della pratica
-    attivo      INTEGER NOT NULL DEFAULT 1
-);
-
-CREATE TABLE eventi (
-    id           INTEGER PRIMARY KEY,
-    iso3         TEXT NOT NULL,
-    radice       TEXT NOT NULL,
-    versione     INTEGER NOT NULL DEFAULT 1,
-    categoria    TEXT,                   -- dall'ultimo triage
-    urgenza      TEXT,
-    aperto_il    TEXT NOT NULL,
-    ritirato_il  TEXT,                   -- NULL finché la fonte lo pubblica
-    thread       TEXT                    -- riferimento del primo messaggio nel canale
-);
-
-CREATE TABLE avvisi (
-    id               TEXT PRIMARY KEY,   -- ULTIMORA_MARKER_35442
-    iso3             TEXT NOT NULL,
-    evento_id        INTEGER NOT NULL REFERENCES eventi(id),
-    titolo           TEXT NOT NULL,
-    hash_testo       TEXT NOT NULL,
-    data_avviso      TEXT,               -- tsModifica: si mostra, non decide nulla
-    prima_vista      TEXT NOT NULL,
-    ultima_vista     TEXT NOT NULL,
-    file_modificato  TEXT,               -- Last-Modified del file che l'ha mostrato per primo
-    assenze          INTEGER NOT NULL DEFAULT 0,
-    stato            TEXT NOT NULL       -- attivo | sostituito | ritirato
-);
-
-CREATE TABLE aggiornamenti_schede (
-    iso3         TEXT NOT NULL,
-    data         TEXT NOT NULL,
-    sezioni      TEXT NOT NULL,
-    prima_vista  TEXT NOT NULL,
-    PRIMARY KEY (iso3, data)
-);
-
-CREATE TABLE triage (
-    avviso_id   TEXT NOT NULL REFERENCES avvisi(id),
-    hash_testo  TEXT NOT NULL,
-    categoria   TEXT,
-    urgenza     TEXT NOT NULL,
-    area        TEXT,
-    sintesi     TEXT,
-    citazione   TEXT,
-    regola      TEXT,                    -- parola chiave del titolo che ha alzato l'urgenza
-    esito       TEXT NOT NULL,           -- ok | citazione_non_trovata | modello_non_disponibile
-    modello     TEXT NOT NULL,
-    prompt      TEXT NOT NULL,           -- versione del prompt
-    il          TEXT NOT NULL,
-    PRIMARY KEY (avviso_id, hash_testo)
-);
-
-CREATE TABLE notifiche (                 -- outbox
-    id           INTEGER PRIMARY KEY,
-    chiave       TEXT NOT NULL UNIQUE,   -- tipo + coppie (evento, versione), ordinate
-    tipo         TEXT NOT NULL,          -- allerta | thread | riepilogo | sistema
-    corpo        TEXT NOT NULL,          -- messaggio già composto, in JSON
-    stato        TEXT NOT NULL DEFAULT 'da_inviare',  -- da_inviare | inviata | fallita
-    tentativi    INTEGER NOT NULL DEFAULT 0,
-    riferimento  TEXT,                   -- id del messaggio restituito dal canale
-    creata_il    TEXT NOT NULL,
-    inviata_il   TEXT
-);
-
-CREATE TABLE feedback (
-    notifica_id  INTEGER NOT NULL REFERENCES notifiche(id),
-    operatore    TEXT NOT NULL,
-    voto         TEXT NOT NULL,          -- utile | non_utile | doveva_essere_immediata
-    il           TEXT NOT NULL
-);
-
-CREATE TABLE giri (
-    id           INTEGER PRIMARY KEY,
-    tipo         TEXT NOT NULL,          -- feed | paese
-    iso3         TEXT,
-    esito        TEXT NOT NULL,          -- ok | stale | errore
-    cambiamenti  INTEGER NOT NULL DEFAULT 0,
-    il           TEXT NOT NULL
-);
-```
-
-</details>
-
-## 5. Scheduling
-
-| Giro | Cadenza | Richieste al giorno | Perché |
-|---|---|---|---|
-| feed globale | ogni 15 minuti e mezzo | 93 | è il TTL degli avvisi nel server (ADR 5) più mezzo minuto, così ogni giro trova la copia scaduta e rivalida. Interrogare il server più spesso restituirebbe la stessa copia |
-| Paesi seguiti | ogni ora | 24 per Paese seguito | serve solo a vedere ritiri e modifiche, che non hanno fretta |
-| riepilogo | alle 08:30 | nessuna | l'inizio del turno |
-
-**Quanto costa.** Con 30 Paesi seguiti sono circa 810 richieste al giorno, quasi tutte 304 senza
-corpo (F1, F6). `totale.json` pesa 51 KB solo quando la redazione pubblica qualcosa, e un file per
-Paese pesa in media 0,8 KB: meno di 1 MB al giorno. Il principio dell'ADR 4 sul traffico verso
-un'infrastruttura pubblica regge anche con un processo sempre acceso.
-
-**Quanto è veloce.** Un avviso arriva nel canale al più 15 minuti e mezzo dopo che il file è cambiato
-sulla fonte. Il ritardo che pesa di più sta prima, fra l'evento e la pubblicazione, e Heimdall
-non lo può ridurre (§ 8.6). Scendere a 5 minuti si può, abbassando `VS_ALERTS_TTL_SECONDS` insieme
-alla cadenza: costa poco, ma il guadagno sta sotto il rumore di una fonte che data i suoi avvisi con
-ore di scarto (F3).
-
-**Il feed può perdere un avviso?** Dovrebbero uscirne più di 25 fra due giri. Il picco osservato è di
-5 avvisi in un'ora e mezza, il pomeriggio del 16 settembre. E per i Paesi seguiti il giro orario legge
-comunque il file intero.
-
-| Alternativa | Perché no |
-|---|---|
-| Fasce di rischio su tutti i Paesi: caldi ogni 5 minuti, tiepidi ogni ora, freddi ogni 12 ore (prima versione) | con F1 una richiesta vede quello che le fasce vedono con centinaia, e le fasce sarebbero logica da mantenere senza guadagno |
-| Solo i file per Paese dei seguiti, ogni 15 minuti | 96 richieste al giorno per Paese contro 93 in tutto, e niente aggiornamenti di scheda. Resta il **ripiego** se `totale.json` cambiasse forma |
-| Cadenza adattiva, più fitta durante una crisi | la latenza che conta è quella della redazione (F3): ottimizzare i minuti non cambia cosa sa l'operatore |
-| RSS o notifiche push | la fonte non li offre (F7) |
-
-## 6. Duplicati e falsi positivi
-
-Il criterio è quello delle regole in § 1: la deduplica decide *dove* arriva un messaggio, il triage
-*quando*; nessuno dei due decide *se* arriva. Non parte niente solo quando non è cambiato niente.
-
-### Duplicati: sei casi, tutti osservati sulla fonte
-
-| Caso | Esempio reale | Come si comporta Heimdall |
-|---|---|---|
-| Lo stesso avviso, rivisto a ogni giro | qualsiasi avviso, ogni 15 minuti | id noto e testo uguale: nessun cambiamento |
-| Aggiornamento con id nuovo | Canada, `34711` sostituito da `35442` (F2) | stessa radice, quindi versione nuova dello stesso evento: risposta nel thread |
-| File rigenerato senza modifiche | Thailandia e Cina il 16/09 (F6) | stesso ETag, 304, nessun confronto |
-| Più avvisi dello stesso Paese insieme | Cuba, `35106`, `35107` e `35108` il 31/07 | un messaggio con tre voci |
-| La stessa notizia su più Paesi | 7 Paesi del Golfo il 25/07, carburante in 6 Paesi il 23/06 (F5) | un messaggio per giro, con i Paesi raggruppati |
-| Avvisi già in corso quando si inizia a seguire | il Perù ne ha 6 | nessuna allerta: compaiono nella risposta a `/segui` |
-
-### Falsi positivi e falsi negativi
-
-| Rischio | Esempio reale | Contromisura |
-|---|---|---|
-| Avviso informativo trattato come emergenza | "THAILANDIA: IMPORTANZA DI MUNIRSI DI ASSICURAZIONE SANITARIA." | il triage lo manda nel riepilogo |
-| Emergenza trattata come informativa | "SICUREZZA" per 7 Paesi del Golfo: nessuna parola chiave nel titolo | il modello legge il testo; il riepilogo arriva comunque; il pulsante "Doveva essere immediata" trasforma l'errore in un caso di eval |
-| Etichetta della fonte incoerente | Ebola `sicurezza` in Kenya, Ruanda e Tanzania (F4) | `tipologia` vale solo come indizio |
-| Regola troppo larga | "VIETNAM: stagione dei tifoni." forzato a immediata | accettato: costa un messaggio; è il motivo per cui le regole guardano solo il titolo |
-| Ritiro letto come "situazione rientrata" | Thailandia, inondazioni nel nord, ritirato intorno all'11/09 | il messaggio dice "non più pubblicato dalla Farnesina", mai "rientrato" |
-| Evento riformulato, radice diversa | Perù: due avvisi attivi, quasi uguali, sullo stato di emergenza a Lima e Callao (01/07 e 01/09) | se sono lo stesso evento, il secondo arriva nel canale invece che nel thread: sbaglia il posto, non l'arrivo |
-| Fonte giù letta come "nessuna novità" | — | le copie stale restano fuori dal confronto; dopo 45 minuti il canale riceve il messaggio di sospensione |
-
-**La direzione dell'errore è dichiarata.** Meglio un messaggio di troppo che uno in meno: un'allerta
-inutile costa un minuto a chi la legge, una mancata può costare un cliente in viaggio verso un'area in
-emergenza. Ma se il volume non ha un limite, "meglio un messaggio in più" diventa un canale
-silenziato, e allora si perdono anche le emergenze. Per questo il volume ha un tetto per costruzione,
-un messaggio per giro, e si misura (§ 8.3).
-
-## 7. Canale di notifica
-
-**La scelta: un canale dedicato nella chat del team**, Slack o Teams, per esempio `#avvisi-viaggio`.
-
-- È immediato e condiviso: chi è in turno vede anche i Paesi dei colleghi assenti.
-- I thread tengono insieme le versioni di un evento (F2) senza aggiungere messaggi al canale.
+| lo stesso avviso rivisto a ogni giro | niente: è già in memoria |
+| aggiornamento di un evento già segnalato | risposta nel thread di quell'evento, non un'allerta nuova |
+| la stessa notizia pubblicata su più Paesi seguiti | un messaggio solo, con i Paesi raggruppati |
+| avvisi già in corso quando si inizia a seguire un Paese | non diventano allerte: si vedono una volta, alla creazione del seguito |
+| avviso ritirato dalla fonte | una riga nel riepilogo, scritta come "non più pubblicato", che non significa "rientrato" |
+| avviso informativo, come l'assicurazione sanitaria o un cambio nelle regole sui visti | riepilogo del mattino, non allerta |
+| fonte irraggiungibile | non si conclude niente, e Heimdall lo dichiara nel canale |
+
+La direzione dell'errore è dichiarata: meglio un messaggio di troppo che uno mancato, perché
+un'allerta inutile costa un minuto e una mancata può costare un cliente in viaggio verso un'area in
+emergenza. Ma il volume ha un tetto — un messaggio per giro, aggiornamenti nei thread — perché un
+canale rumoroso viene silenziato, e allora si perdono anche le emergenze.
+
+## 6. Canale di notifica
+
+Un canale della chat del team, Slack o Teams.
+
+- È immediato ed è condiviso: chi è in turno vede anche i Paesi dei colleghi assenti.
 - La menzione avvisa chi segue il Paese, senza messaggi privati da gestire.
-- Un clic basta a misurare la precisione.
+- I thread tengono insieme gli aggiornamenti di uno stesso evento, che altrimenti sarebbero messaggi
+  nuovi.
 
-Scartate l'email, dove l'urgenza si perde nella casella e mancano thread e feedback immediato, e la UI
-web dell'assistente, che funziona solo a pagina aperta e oggi non sa chi la sta guardando.
 
-### I messaggi
+Il messaggio porta titolo e data della Farnesina, la sintesi generata e dichiarata come tale, il link
+all'avviso e il PDF di una pagina con i recapiti consolari, che è quello che l'operatore inoltra al
+cliente. Alle 08:30 un riepilogo raccoglie ciò che non era urgente: avvisi informativi, avvisi
+ritirati, schede paese aggiornate, seguiti in scadenza.
 
-Oltre all'allerta della § 1 ci sono tre tipi di messaggio.
+## 7. Limiti dichiarati
 
-**Aggiornamento, nel thread dell'evento.**
-
-```
-↳ risposta nel thread dell'avviso sul Canada
-Aggiornamento · Canada · sanitaria · immediata                @Marco · segue fino al 30/09
-
-CANADA: introduzione misure sanitarie di prevenzione - aggiornamento.
-Data dell'avviso 16/09/2026 16:30 · sostituisce l'avviso del 28/05, non più pubblicato
-
-Sintesi: fino al 28 settembre chi ha transitato o soggiornato in Repubblica Democratica del
-Congo, Uganda o Sud Sudan nei 21 giorni precedenti deve osservare 21 giorni di quarantena in
-Canada; chi presenta sintomi viene isolato in ospedale.
-  «dovranno osservare una quarantena per 21 giorni»
-
-Avviso completo      https://www.viaggiaresicuri.it/find-country/country/CAN
-```
-
-**Riepilogo del mattino** (esempio composto con voci reali di giorni diversi).
-
-```
-Riepilogo avvisi · Paesi seguiti · ultime 24 ore
-
-Croazia · @Anna · segue fino al 25/09
-  • Scheda aggiornata l'11/09: sezione Sicurezza
-    https://www.viaggiaresicuri.it/find-country/country/HRV
-Thailandia · @Giulia · segue fino al 02/10
-  • Non più pubblicato dalla Farnesina: «THAILANDIA: inondazioni nel nord del Paese.»
-    Il ritiro dell'avviso non dice che la situazione sia rientrata.
-  • Nuovo · pratica: «THAILANDIA: DIMINUZIONE DEL PERIODO DI ESENZIONE DEL VISTO DI INGRESSO
-    PER SOGGIORNI TURISTICI»                                  [ Doveva essere immediata ]
-In scadenza domani: Peru' · @Luca
-
-Monitoraggio: 93 giri su 93 riusciti, nessun invio fallito.
-```
-
-**Messaggi di sistema.**
-
-```
-⚠️ Monitoraggio sospeso dalle 14:05
-Da tre giri non riesco a leggere gli avvisi della Farnesina: fonte o server MCP non raggiungibili.
-Finché non riprendo, l'assenza di allerte in questo canale non vuol dire che non ne siano uscite.
-
-✅ Monitoraggio ripreso alle 15:20 · ricontrollati 12 Paesi seguiti · nessuna novità
-```
-
-### Feedback
-
-- "Utile" e "Non utile" su ogni allerta; "Doveva essere immediata" su ogni voce del riepilogo.
-- Il clic arriva a `POST /feedback` delHeimdall, che verifica la firma della richiesta con il
-  segreto dell'app di chat.
-- È l'unico giudice della precisione (§ 8.3), e ogni "Doveva essere immediata" diventa un caso di
-  eval.
-
-### Slack o Teams
-
-| Serve | Slack | Teams |
-|---|---|---|
-| messaggio nel canale | `chat.postMessage` | bot (Bot Framework), messaggio proattivo nel canale |
-| risposta nel thread | `thread_ts` | risposta nella conversazione del messaggio |
-| pulsanti | Block Kit e interactivity | Adaptive Card con `Action.Submit` |
-| menzione a partire dall'email | `users.lookupByEmail` | entità `mention` con l'UPN |
-
-Il design non dipende dalla scelta: Heimdall parla con un adattatore che espone `pubblica`,
-`rispondi` e `utente`.
-
-### Trasparenza
-
-Come nella UI dell'assistente, ogni messaggio dichiara che categoria, urgenza e sintesi sono generate
-da un sistema di IA e possono contenere errori, e rimanda al testo ufficiale. Titolo, date, link e
-recapiti non passano dal modello.
-
-## 8. Valutazioni
-
-### 8.1 Dove sta l'agente
-
-Heimdall è autonoma nel senso che conta per la traccia: parte da sola, osserva, decide cosa è
-cambiato, quanto è urgente, chi avvisare e dove, e sorveglia se stessa. Il modello entra in un solo
-punto, quello in cui serve leggere un testo (F4). Tutto il resto è deterministico e si verifica con i
-payload reali.
-
-L'alternativa più "agentica" è un ciclo ReAct con i tool MCP, che per ogni avviso apre anche la scheda
-del Paese e scrive un briefing. È scartata perché per decidere quanto è urgente un avviso basta il suo
-testo, che il triage ha già: il ciclo aggiungerebbe chiamate, variabilità e un comportamento difficile
-da testare, senza aggiungere informazione alla decisione. È il criterio dell'ADR 6: il modello dove
-serve leggere, il codice dove serve garantire.
-
-### 8.2 Alternative scartate
-
-Quelle sullo scheduling sono in § 5.
-
-| Scelta | Alternativa | Perché no |
-|---|---|---|
-| evento riconosciuto da id nuovo e radice del titolo | id nuovo = avviso nuovo, `tsModifica` avanzato = aggiornamento | gli aggiornamenti hanno id nuovi (F2) e le date sono redazionali (F3) |
-| triage con modello e regole sul titolo | `tipologia` della fonte | due valori, nessuna categoria naturale, etichette incoerenti (F4) |
-| | solo regole | sul titolo sfuggono i titoli generici come "SICUREZZA"; sul testo scattano su metà del feed |
-| | ciclo ReAct | § 8.1 |
-| nessuna revisione prima dell'invio | coda di revisione umana per gli avvisi sotto soglia | l'umano nel ciclo è già il destinatario, e Heimdall non contatta i clienti: una coda rallenterebbe proprio le emergenze |
-| un messaggio per giro, aggiornamenti nei thread | tetto di N notifiche per Paese al giorno | il tetto scarta il messaggio N+1, che durante una crisi è quello che conta |
-| | rinotificare solo se la gravità sale | sparirebbero gli aggiornamenti che non cambiano gravità, e gli aggiornamenti sono quasi metà degli avvisi (F2) |
-| stato in un SQLite delHeimdall | tabelle nella cache del server | la cache si rigenera e vive nel container del server; lo storico delle notifiche non si rigenera |
-| sonda che passa dal server MCP | Heimdall importa il client come libreria | due processi sulla stessa cache SQLite, oppure due cache, e la fonte conosciuta da due componenti invece che da uno |
-| comandi `/segui` espliciti | tool MCP di scrittura chiamato dall'assistente in linguaggio naturale | il server resta in sola lettura; un'azione con effetti la scrive l'operatore |
-| solo Viaggiare Sicuri | segnali esterni: GDACS per le catastrofi naturali, OMS per i focolai | § 8.7 |
-| chat del team | email, UI web dell'assistente | § 7 |
-
-### 8.3 Come si misura
-
-**In esercizio.** Gli obiettivi sono di partenza, da rivedere dopo quattro settimane di dati.
-
-| Metrica | Definizione | Obiettivo | Dati |
-|---|---|---|---|
-| Time-to-detect | `prima_vista` meno il `Last-Modified` del file che ha mostrato l'avviso | p95 sotto i 16 minuti | `avvisi` |
-| Precisione delle allerte | voti "Utile" sul totale dei voti alle allerte immediate | almeno 80% | `feedback` |
-| Allerte mancate | voci del riepilogo segnalate "Doveva essere immediata" | nessuna sul dataset di eval; in esercizio ciascuna diventa un caso | `feedback` |
-| Volume | messaggi nel canale per operatore a settimana | da osservare: sopra 10 si rivede la politica | `notifiche` |
-| Aggiornamenti riconosciuti | aggiornamenti finiti in un thread, sul totale degli avvisi con "aggiornamento" nel titolo | informativa: dice se la radice regge | `avvisi`, `eventi` |
-| Copertura | giri riusciti sul totale dei giri, minuti di sospensione | almeno 99% dei giri | `giri` |
-| Costo del modello | chiamate e token al giorno | informativa | `triage` |
-
-Il time-to-detect misura Heimdall, non il sistema intero: il ritardo fra evento e pubblicazione
-non è misurabile, perché la fonte non dichiara quando è avvenuto l'evento (§ 8.6).
-
-**Prima di andare in esercizio: l'eval del triage.**
-
-- **Dataset**: i 96 avvisi attivi al 16 settembre, già scaricati, etichettati a mano con gli stessi
-  criteri del prompt. A una prima lettura sono circa 16 eventi naturali, 24 sanitari, 34 di sicurezza
-  e 22 pratici, contro i 76 `sicurezza` e 20 `sanita` della fonte.
-- **Misure**: allerte immediate mancate, con obiettivo zero; precisione delle `immediata`;
-  accuratezza della categoria; quota di citazioni non trovate.
-- **Come**: test marcati `llm`, come l'eval dell'assistente, da rilanciare quando cambiano prompt o
-  modello. Ogni "Doveva essere immediata" raccolto in esercizio si aggiunge al dataset.
-
-### 8.4 Costi
-
-| Voce | Stima | Base |
-|---|---|---|
-| Richieste alla fonte | 93 al giorno per il feed più 24 per Paese seguito: circa 810 con 30 Paesi | quasi tutte 304 senza corpo (F1, F6) |
-| Byte scaricati | meno di 1 MB al giorno | 51 KB per ogni cambio reale del feed; 0,8 KB in media per file di Paese |
-| Chiamate al modello | circa una al giorno, 5 nei giorni intensi | almeno 29 avvisi nei 30 giorni al 16/09 |
-| Token per chiamata | 1.000–3.000 | testo mediano 1.048 caratteri, massimo 7.500, più il prompt |
-| Spazio su disco | trascurabile | circa un avviso al giorno |
-
-### 8.5 Rischi
-
-| Rischio | Effetto | Contromisura |
-|---|---|---|
-| `totale.json` cambia forma o sparisce | la sonda non vede più novità | validazione Pydantic e test di contratto di rete, come quelli esistenti; un giro che non valida è fallito, e dopo tre il canale lo sa; ripiego sui file per Paese (§ 5) |
-| Il modello classifica male | un'emergenza finisce nel riepilogo | regole sul titolo che alzano l'urgenza; eval prima del rilascio; "Doveva essere immediata"; il riepilogo arriva comunque |
-| Il modello inventa nella sintesi | un'informazione falsa nel canale | citazione verificata alla lettera; titolo, date, link e recapiti mai dal modello; etichetta IA |
-| Fonte o server MCP irraggiungibili | silenzio scambiato per calma | copie stale fuori dal confronto; messaggi di sospensione e di ripresa |
-| Heimdall si ferma | nessuno se ne accorge, perché il silenzio è il suo stato normale | ping a un monitor esterno a ogni giro; il riepilogo delle 08:30 riporta i giri riusciti, e se non arriva è già un segnale |
-| Due istanze attive durante un deploy | messaggi doppi | lease in SQLite; chiave unica nell'outbox |
-| Canale irraggiungibile | messaggi non consegnati | outbox con tentativi; gli invii falliti compaiono nel riepilogo |
-| Troppi messaggi | il canale viene silenziato, e con lui le emergenze | un messaggio per giro, aggiornamenti nei thread, seguiti che scadono, volume misurato |
-| Dati personali nei seguiti | trattamento non necessario | `nota` con il solo riferimento della pratica; seguiti scaduti cancellati dopo 90 giorni |
-
-### 8.6 Limiti noti
-
-- **Rileva la pubblicazione, non l'evento.** F3 lo rende visibile: la data di un avviso può precedere
-  di ore (Madagascar) o di settimane (Perù) la comparsa del file. Chi riceve il messaggio deve
-  saperlo, ed è per questo che data dell'avviso e ora di rilevazione compaiono separate.
-- **La semantica degli aggiornamenti è dedotta, non documentata:** un caso osservato in diretta
-  (Canada), più la forma dei titoli e l'ordine degli id. Dopo due settimane di esercizio la tabella
-  `avvisi` dirà quante sostituzioni e quante modifiche in place ci sono state davvero.
-- **La radice del titolo è un'euristica.** Sbaglia con i titoli riformulati (Perù) e con le radici
-  generiche ("sicurezza"); l'effetto è sul posto del messaggio, non sulla consegna.
-- **Il feed è troncato a 25 voci.** Con giri di 15 minuti non è un limite ai volumi osservati, ma
-  resta un'ipotesi sul ritmo della redazione.
-- **Degli aggiornamenti di scheda si sa quali sezioni sono cambiate, non cosa.** Per saperlo
-  servirebbe conservare la versione precedente della scheda (§ 8.7).
-- **Consegna almeno una volta** (§ 4.7).
-- **Identità dell'operatore.** Nella CLI è una variabile d'ambiente. Nella UI web i comandi arrivano
-  solo con l'autenticazione, che oggi manca: è un limite già dichiarato nel
-  [README](../README.md#assunzioni-limiti-noti-non-implementato).
-
-### 8.7 Estensioni
-
-- **Segnali precoci esterni**, come GDACS per le catastrofi naturali e le Disease Outbreak News
-  dell'OMS per i focolai: servirebbero solo ad anticipare l'attenzione del team ("si sta muovendo
-  qualcosa in Indonesia"), mai come contenuto per il cliente, che continuerebbe a citare la
-  Farnesina. Il prezzo è reale: tornano i falsi positivi che oggi la fonte filtra da sé, e lo stesso
-  evento va deduplicato fra fonti diverse.
-- **Seguiti dal gestionale delle pratiche**: destinazione, date e operatore letti dalle prenotazioni
-  invece che dal comando.
-- **Cosa è cambiato nella scheda**: conservare la versione precedente e far riassumere al modello la
-  differenza, a partire dalla sezione Sicurezza.
-- **Comandi dentro la chat**: `/segui` come comando Slack o Teams, dove l'identità dell'operatore è
-  già nota.
-
-### 8.8 Rispetto alla prima versione
-
-| Tema | Prima versione | Questa versione | Perché |
-|---|---|---|---|
-| Scheduling | fasce di rischio su 222 Paesi | feed globale ogni 15 minuti, Paesi seguiti ogni ora | F1 |
-| Rilevamento | `tsModifica` avanzato = aggiornamento | id nuovo con la stessa radice = aggiornamento; le date non decidono | F2, F3 |
-| Categoria | `tipologia` usata com'è | ricavata dal testo | F4 |
-| Gravità | rank da mappa manuale, soglia, coda di revisione | due livelli di urgenza, regole che alzano, feedback | la coda rallenta le emergenze, e l'umano nel ciclo è già il destinatario |
-| Aggiornamenti | nuova notifica solo se il rank sale | sempre nel thread | quasi metà degli avvisi sono aggiornamenti |
-| Volume | tetto per Paese e finestra di quiete | un messaggio per giro | il tetto nasconde il messaggio che conta |
-| Stato | tabelle nella SQLite della cache | SQLite delHeimdall | cicli di vita diversi |
-
-## 9. Piano di implementazione
-
-| Fase | Cosa | Come si verifica | Stima |
-|---|---|---|---|
-| 1 | `get_ultimi_avvisi` e `Meta.source_last_modified` nel server | test offline sul `totale.json` del 16/09; test di contratto di rete | 0,5 giorni |
-| 2 | stato e rilevatore | i casi reali della tabella qui sotto | 1 giorno |
-| 3 | sonda, scheduler, watchdog | server MCP locale; fonte simulata irraggiungibile | 0,5 giorni |
-| 4 | triage e regole | eval sui 96 avvisi etichettati, test marcati `llm` | 1 giorno |
-| 5 | politica, messaggi, outbox, adattatore Slack, feedback | canale di prova; crash simulato fra scrittura e invio | 1 giorno |
-| 6 | comandi `/segui`, `/seguiti`, `/smetti` e API | dalla CLI: seguire l'Indonesia, iniettare l'avviso del Krakatoa, vedere il messaggio | 0,5 giorni |
-
-Circa quattro giorni e mezzo. Le fasi 1–3 da sole danno già un rilevatore verificabile, senza modello
-né canale.
-
-**Casi di test, dai payload del censimento.**
-
-| Caso | Dati | Atteso |
-|---|---|---|
-| aggiornamento con id nuovo | `ultima_ora/CAN.json` del 13/09 e del 16/09 | `Aggiornamento`, stesso evento, versione 2 |
-| più avvisi dello stesso Paese | `CUB.json`: `35106`, `35107`, `35108` | un messaggio con tre voci |
-| stessa notizia su più Paesi | i file dei 7 Paesi del Golfo | un messaggio con sette Paesi |
-| ritiro | `THA.json` della fixture (con `35282`) e del 16/09 (senza) | `Assenza`, poi `Ritiro` al secondo giro |
-| data retrodatata | `PER.json` con `35228`, dopo un giro con id più recenti già visti | rilevato come nuovo: il confronto è per id |
-| file rigenerato | 304 con ETag invariato | nessun cambiamento |
-| fonte irraggiungibile | risposta con `cache_status="stale"` | giro fallito, nessuna `Assenza` |
-| crash dopo la scrittura nell'outbox | riga `da_inviare` al riavvio | un solo invio |
-
-**Struttura.**
-
-```
-Heimdall/
-  config.py        cadenze, canale, percorso dello stato
-  stato.py         SQLite: tabelle, lease, transazioni
-  sonda.py         client MCP: feed e avvisi per Paese → osservazioni
-  rilevatore.py    funzione pura: stato + osservazione → cambiamenti
-  triage.py        modello, regole sul titolo, controlli sull'uscita
-  politica.py      cambiamenti + seguiti → notifiche nell'outbox
-  messaggi.py      composizione di allerta, thread, riepilogo, sistema
-  canale.py        adattatore Slack (o Teams)
-  api.py           FastAPI: seguiti e feedback
-  main.py          scheduler, dispatcher, watchdog
-```
-
-Fuori dal pacchetto cambiano poche cose: il tool e il modello del feed nel server (`alerts.py`,
-`models.py`, `server.py`), i comandi e il filtro dei tool nell'assistente (`cli.py`, `mcp_tools.py`),
-un extra `Heimdall` in `pyproject.toml` e il valore `COMPONENT=Heimdall` nel Dockerfile.
-
-**Configurazione.**
-
-| Variabile | Default | Uso |
-|---|---|---|
-| `MCP_SERVER_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | come l'assistente | server MCP e modello del triage |
-| `Heimdall_GIRO_FEED_SECONDS`, `Heimdall_GIRO_SEGUITI_SECONDS` | `930`, `3600` | cadenze |
-| `Heimdall_RIEPILOGO` | `08:30` | ora del riepilogo, Europe/Rome |
-| `Heimdall_STATO` | `var/Heimdall.sqlite3` | file dello stato |
-| `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_CANALE` | — | canale |
-| `Heimdall_HEARTBEAT_URL` | vuoto | monitor esterno |
-| `Heimdall_URL`, `TRAVELANALYST_OPERATORE` | —, — | lato CLI: dove trovare l'API e chi sta scrivendo |
+- Heimdall rileva la **pubblicazione**, non l'evento: la Farnesina pubblica dopo aver verificato,
+  quindi è veloce rispetto al sito, non rispetto alla notizia. In produzione affiancherei un segnale
+  più rapido — agenzie, allerte meteo, sorveglianza epidemiologica — usato **solo** per alzare
+  l'attenzione del team; quello che arriva al cliente continuerebbe a citare la Farnesina.
+- Riconosce dal titolo che due avvisi parlano dello stesso evento: con un titolo riformulato può
+  sbagliare, e allora il messaggio finisce nel canale invece che in un thread.
+- Ha bisogno di una memoria propria, che è l'unico pezzo di stato del progetto: il server MCP oggi
+  non ne ha, a parte la cache.
