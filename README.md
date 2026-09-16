@@ -40,11 +40,9 @@ flowchart LR
 
 ## Quickstart
 
-**Prerequisiti:** Python 3.11 o superiore (verificato su 3.12), `git`, accesso a
-`www.viaggiaresicuri.it` e all'endpoint del modello. Docker solo se si vogliono le immagini.
+**Prerequisiti:** Python 3.12, `git`, accesso a `www.viaggiaresicuri.it` e all'endpoint del modello LLM selezionato. Docker solo se si vogliono le immagini.
 
-**Due ambienti virtuali, non uno.** FastMCP 4 dipende da `mcp>=2`, `langchain-mcp-adapters` da
-`mcp<2`: server e assistente si installano separati e parlano via HTTP.
+**Due ambienti virtuali** FastMCP 4 dipende da `mcp>=2`, `langchain-mcp-adapters` da `mcp<2`: server e assistente si installano separati e parlano via HTTP.
 
 ```bash
 git clone https://github.com/lorispalmarin/travelanalyst.git
@@ -59,13 +57,12 @@ python3.12 -m venv .venv-assistant
 cp .env.example .env    # poi inserire OPENAI_API_KEY
 ```
 
-Se `python3.12` non c'è, va bene qualunque interprete 3.11 o superiore. Il server non ha bisogno
-di credenziali; l'elenco completo delle variabili, commentato, è in [.env.example](.env.example).
+Il server non ha bisogno di credenziali; l'elenco completo delle variabili, commentato, è in [.env.example](.env.example).
 
 | Variabile | Default | Processo | Uso |
 |---|---|---|---|
 | `OPENAI_API_KEY` | — | assistente | **obbligatoria** |
-| `OPENAI_MODEL`, `OPENAI_BASE_URL` | `gpt-5.6-luna`, vuoto | assistente | modello ed endpoint (vuoto = OpenAI; oppure Azure) |
+| `OPENAI_MODEL`, `OPENAI_BASE_URL` | `gpt-5.6-luna`, vuoto | assistente | modello ed endpoint (vuoto = OpenAI) |
 | `MCP_SERVER_URL` | `http://127.0.0.1:8001/mcp` | assistente | dove trovare il server |
 | `MCP_HOST`, `MCP_PORT` | `127.0.0.1`, `8001` | server | indirizzo di ascolto |
 | `VS_CACHE_TTL_SECONDS`, `VS_ALERTS_TTL_SECONDS` | `21600`, `900` | server | soglia di rivalidazione: generale (6 h) e avvisi (15 min) |
@@ -79,25 +76,6 @@ terminale. L'assistente si collega al server già avviato, non lo avvia né lo f
 .venv-assistant/bin/travelanalyst          # terminale 2: CLI (/tool, /nuovo, /aiuto, /esci)
 .venv-assistant/bin/travelanalyst-web      # oppure: UI web su http://127.0.0.1:8000
 ```
-
-**Test.** Ogni ambiente esegue le proprie suite; `tests/conftest.py` salta quelle del
-componente non installato.
-
-```bash
-# server, contratto, cache, client, normalizzazione (offline)
-.venv/bin/python -m pytest -q -m "not network and not llm"
-# assistente, integrazione HTTP fra i due processi, packaging (offline, nessuna chiamata al modello)
-.venv-assistant/bin/python -m pytest -q tests/test_assistant.py tests/test_mcp_http.py tests/test_packaging.py
-# sentinella sulla fonte reale: scarica e valida tutte le schede paese
-.venv/bin/python -m pytest -q -m network
-# eval sul modello vero: richiedono il server avviato e consumano credito
-.venv-assistant/bin/python -m pytest tests/test_assistant_eval.py -m llm -s
-```
-
-`test_mcp_http.py` avvia un server di test con `.venv/bin/python` (variabile `MCP_TEST_SERVER_PYTHON`).
-
-**Indice semantico.** Non c'è niente da ricostruire: la ricerca semantica è stata costruita e poi
-rimossa, vedi l'[ADR 2](#adr-2-nessun-rag-decide-la-forma-del-contenuto).
 
 **Docker.** Due immagini separate, collegate da una rete Docker:
 
@@ -178,15 +156,14 @@ lettera, link a `ALB_contactDetails.pdf`, nessuna chiamata a `get_allerte`, che 
 - `sheet.py` e `alerts.py`: scheda validata con vista per sezione e fallback sul primo piano; avvisi
   con i tre stati e la frase pronta.
 - `general_info.py`: le due guide generali validate e appiattite in sezioni, esposte come sommario
-  e lettura. Nessun indice: sono sette sezioni e il sommario intero costa 486 token.
+  e lettura.
 - `models.py` e `normalize.py`: il contratto Pydantic. Nei validator l'HTML diventa testo, i link sono
   estratti prima di togliere i tag, i rimandi fra sezioni finiscono in `see_also`. I nodi sconosciuti
   non rompono la validazione (`extra="allow"`).
 
-**Client HTTP e cache.** `client.py` è l'unico punto di rete: timeout di 15 s, 3 tentativi con
-backoff esponenziale, tetto alle connessioni, lock per URL, richieste condizionali, errori httpx
-tradotti in eccezioni di dominio. `cache.py` è uno store SQLite dei **corpi grezzi** per URL, sotto
-la normalizzazione: un cambio di parsing non invalida niente.
+**Client HTTP e cache.** `client.py` è l'unico punto di rete: timeout di 15 s, 3 tentativi con tetto alle connessioni, lock per URL, richieste condizionali, errori httpx
+tradotti in eccezioni di dominio. `cache.py` è uno store SQLite dei **corpi grezzi** per URL, prima
+della normalizzazione: un cambio di parsing non invalida niente.
 
 **Assistente** ([assistant/](assistant/)).
 - `agent.py`: `create_agent` con `ChatOpenAI` e checkpointer in memoria; la risposta esce come flusso
@@ -303,8 +280,7 @@ criterio `Topic.status` distingue `available` da `not_published`, `Topic.provena
 
 ## Fonti e discovery
 
-Il sito è una SPA Angular: l'HTML non contiene i dati, e gli endpoint sono stati ricavati dalle
-chiamate XHR nei bundle `/build/main.*.js`. Si parte da `/schede_paese/lista_nazioni.json` (222
+Si parte da `/schede_paese/lista_nazioni.json` (222
 Paesi con nome italiano, ISO3, ISO2); con l'ISO3 si arriva a scheda, avvisi ed export PDF. Più tardi
 è emersa una documentazione ufficiale, `/contenuti/JSON.pdf` (footer del sito, novembre 2021):
 elenca gli endpoint senza descriverne i campi, e in un punto è sbagliata, perché
@@ -318,7 +294,7 @@ elenca gli endpoint senza descriverne i campi, e in un punto è sbagliata, perch
 | `/schede_paese/pdf/{ISO3}.pdf` | PDF della scheda | come link |
 | `/schede_paese/pdf/{ISO3}_contactDetails.pdf` | PDF di una pagina con i soli recapiti | come link |
 | `/ultima_ora/totale.json` | feed globale recente, troncato | no: non è un superset dei per-Paese |
-| `/approfondimenti/{nome}.json` | guide generali non legate a un Paese | sì: `preparaunviaggio` e `documentidiviaggio`; `saluteinviaggio` risponde ma non è più pubblicato |
+| `/approfondimenti/{nome}.json` | guide generali non legate a un Paese | sì: `preparaunviaggio` e `documentidiviaggio` |
 | `/marker/marker_{ISO3}.json` | lista | no: sempre `[]` nei campioni |
 
 **Anomalie.**
@@ -332,24 +308,18 @@ elenca gli endpoint senza descriverne i campi, e in un punto è sbagliata, perch
 - **Array vuoti come caso normale.** `ultima_ora/ALB.json` pesa 28 byte, con entrambe le liste vuote.
 - **`""` al posto di `null`** su `nazione` e `tipologia`. Lo stesso avviso ha una forma diversa in
   `totale.json` e nell'endpoint per Paese.
-- **Un endpoint che risponde ma non è più pubblicato.** `/approfondimenti/saluteinviaggio.json`
-  torna 200 con 216 KB e 48 sezioni, ma nel bundle Angular la rotta corrispondente non esiste e il
-  metodo che lo scarica non è chiamato da nessuna pagina: il link rimasto nel footer ricade nel
-  redirect alla home. Ultima modifica 23/06/2026, contro 08/07 e 06/08 delle due guide vive. Un
-  200 non vuol dire "pubblicato": le guide generali sono due, non tre.
 
 **ETag e Last-Modified.** Verificati il 13 settembre 2026 su lista Paesi, scheda ALB e avvisi ALB e
 UKR: tutti espongono `etag`, `last-modified` e `cache-control: public,max-age=0`. La GET condizionale
 sulla scheda ALB riceve `304` e zero byte (48.823 senza). Senza ETag il client usa `If-Modified-Since`.
 
-**Cercato e non trovato.** Un endpoint per i recapiti di ambasciate e consolati: stanno solo nella
-scheda e nel PDF `_contactDetails`. Un contratto d'uso per client automatici: `robots.txt` dice solo
+**Cercato e non trovato.** Un contratto d'uso per client automatici: `robots.txt` dice solo
 `Allow: /`, senza limiti né cadenze. Uno storico degli avvisi: esiste solo lo stato attuale. Una
 data per singola sezione: c'è solo come testo nel nodo `Cronologia-aggiornamenti`.
 
 ## Decisioni progettuali
 
-### ADR 1. Tool granulari invece di un tool per endpoint
+### 1. Tool granulari invece di un tool per endpoint
 
 **Contesto.** Tre endpoint utili. La scheda intera costa migliaia di token e una conversazione su
 due Paesi la carica due volte.
@@ -357,12 +327,11 @@ due Paesi la carica due volte.
 per sezione, più `find_country` e `get_allerte`. Il taglio si ferma alla sezione, con `topics`
 come filtro opzionale.
 **Conseguenze.** Il contesto resta piccolo e il routing dipende dalle docstring, che vanno curate
-come codice. Ci sono 10 tool da tenere coerenti invece di 3, e ogni nuova sezione della fonte
-richiede una scelta esplicita su dove esporla. Oggi sono raggiungibili 20 dei 28 nodi: restano
+come codice. Oggi sono raggiungibili 20 dei 28 nodi: restano
 fuori la cronologia degli aggiornamenti, le indicazioni per operatori economici,
 `Documentazione-necessaria` (sempre vuoto) e il primo piano, che arriva solo come fallback.
 
-### ADR 2. Nessun RAG: decide la forma del contenuto
+### 2. Nessun RAG: decide la forma del contenuto
 
 **Contesto.** Le schede paese sono già indicizzate sugli assi delle domande (Paese × sezione).
 Restavano le guide tematiche — allora identificate in "Salute in viaggio" e "Documenti di
@@ -370,16 +339,10 @@ viaggio", vedi l'aggiornamento in fondo all'ADR — l'unico contenuto non
 legato a un Paese, e su quelle era stata costruita una ricerca semantica con embedding.
 **Decisione.** Tolta. Nessun retrieval semantico, da nessuna parte. Non è il formato a decidere
 (anche le schede sono prosa HTML) ma la forma del contenuto. Misurate, le guide si sono rivelate un
-catalogo di 52 sezioni con un nome parlante (`Dengue`, `Rabbia`, `Furto o smarrimento di
-documenti`) e un sommario di circa 876 token, leggibile per intero. La ricerca semantica sbagliava
+catalogo di 52 sezioni con un nome parlante e un sommario di circa 876 token, leggibile per intero. La ricerca semantica sbagliava
 proprio dove una scelta per nome non può sbagliare: per "smarrimento del passaporto" metteva al
 primo posto "Restituzione di carte identità italiane rinvenute all'estero".
-**Conseguenze.** Sono spariti l'indice binario, lo script di ingestion e le dipendenze relative, e
-il server non riceve più alcuna credenziale di modello.
-
-**Aggiornamento del 16/09/2026: le guide ora sono esposte, con il sommario e non con una ricerca.**
-Le guide generali vive sono due, "Preparare un viaggio" e "Documenti di viaggio" — la terza,
-"Salute in viaggio", la fonte la serve ancora come JSON ma non la pubblica più — e valgono sette
+**Conseguenze.** Le guide generali vive sono due, "Preparare un viaggio" e "Documenti di viaggio" e valgono sette
 sezioni per 3.866 token. `list_general_topics` restituisce il sommario a 486 token e
 `get_general_info` la sezione scelta, in mediana 972 token: 1.458 in tutto, e la scelta è
 esplicita e deterministica.
@@ -388,14 +351,13 @@ La ricerca è stata comunque scritta e misurata, sul ramo `search-general-inform
 stato unito**. Funziona: su 35 domande etichettate a mano fa hit@1 25/30, hit@3 29/30 e MRR 0,901.
 Ma i primi tre risultati costano 2.910 token in mediana contro i 3.866 dell'intero corpus, cioè
 restituiscono tre quarti di tutto quello che c'è: un filtro che non filtra, in cambio di un motore
-da mantenere. Il ramo resta lì come misura: se le guide crescono — `avvertenze.json` ne
-aggiungerebbe due, o se la guida sanitaria tornasse pubblicata — quella scelta si ribalta.
+da mantenere. Il ramo resta lì come misura: se le guide crescono quella scelta si ribalta.
 
-### ADR 3. TTL unico, con rivalidazione condizionale
+### 3. TTL unico, con rivalidazione condizionale
 
 **Contesto.** I contenuti si muovono a ritmi diversi: requisiti d'ingresso a mesi, primo piano più
 spesso, avvisi senza preavviso. Un TTL unico è sbagliato per qualcuno.
-**Decisione.** Un TTL solo, 6 ore, configurabile, con un'unica eccezione (ADR 5). Scaduta la soglia
+**Decisione.** Un TTL solo, 6 ore, configurabile, con un'unica eccezione (vedi 5). Scaduta la soglia
 non si riscarica ma si chiede alla fonte se il contenuto è cambiato: `If-None-Match`, oppure
 `If-Modified-Since`. Con un 304 il corpo resta e si aggiorna solo `retrieved_at`.
 **Conseguenze.** Sopra la soglia il costo è un round trip, non un download, ma una scheda
@@ -403,7 +365,7 @@ modificata dieci minuti fa può essere servita nella versione di sei ore prima. 
 tipo di contenuto sarebbero preferibili; richiedono però la frequenza di cambiamento per sezione,
 che la fonte non espone come campo, e restano rimandati.
 
-### ADR 4. Il TTL non cancella l'entry: stale-if-error
+### 4. Il TTL non cancella l'entry: stale-if-error
 
 **Contesto.** Una cache normale sfratta le entry scadute. La fonte però è un servizio pubblico che
 può essere irraggiungibile proprio quando serve.
@@ -418,7 +380,7 @@ contenuti che cambiano su scala di settimane. La fonte dichiara `public,max-age=
 cioè "rivalida, non riscaricare", e il client fa esattamente questo. Il limite, se non lo mette la
 fonte, se lo deve mettere il client.
 
-### ADR 5. Sulle allerte il TTL scende a 15 minuti
+### 5. Sulle allerte il TTL scende a 15 minuti
 
 **Contesto.** I timestamp osservati dicono che gli avvisi cambiano di rado: `ultima_ora/UKR.json`
 ha `last-modified` 18 agosto 2026, `ultima_ora/ALB.json` 27 luglio 2026, controllati il 13
@@ -431,7 +393,7 @@ un avviso è il peggior errore che il sistema possa fare. La rivalidazione costa
 vuoto pesa 28 byte e il 304 zero. Resta un'eccezione singola e dichiarata; la seconda
 giustificherebbe l'infrastruttura dei TTL differenziati.
 
-### ADR 6. Grounding per prevenzione strutturale, non un verificatore a runtime
+### 6. Grounding per prevenzione strutturale, non un verificatore a runtime
 
 **Contesto.** Il rischio principale non è un numero inventato, ma un silenzio della fonte che
 diventa rassicurazione: nodo vuoto letto come "nessun rischio", lista vuota letta come "Paese
@@ -489,21 +451,18 @@ Solo progettato, non implementato; il design completo è in [docs/PROACTIVE_AGEN
 - I TTL di 6 ore e 15 minuti sono scelte mie, non indicazioni della fonte.
 
 **Limiti noti**
-- La data citata è `updateDate` della scheda intera, non della sezione: nella fixture dell'Albania la scheda è di fine luglio 2026, ma la Situazione sanitaria risulta modificata l'ultima volta il 03/12/2025. In più `updateDate` è in UTC (`2026-07-30T22:00:00Z`), e il modello scrive 30 luglio dove la cronologia della fonte dice 31/07.
+- La data citata è `updateDate` della scheda intera, non della sezione: nella fixture dell'Albania la scheda è di fine luglio 2026, ma la Situazione sanitaria risulta modificata l'ultima volta il 03/12/2025.
 - Nessuna query cross-Paese e nessuno storico: "quali Paesi hanno allerte attive" non si può chiedere.
 - "Solo tool MCP" è imposto dal prompt: il modello non ha altri strumenti, ma nulla gli impedisce di aggiungere conoscenza propria.
-- Una scheda in JSON valido ma fuori contratto entra in cache prima della validazione e sostituisce la copia buona.
-- L'elenco dei Paesi viene caricato una volta per processo: se all'avvio arriva da una copia stale, resta così fino al riavvio.
-- Con cache vuota e fonte giù il tool restituisce un errore, ma il prompt non ha una regola su come riferirlo.
 - La conversazione vive in memoria e si perde al riavvio. La UI web ha un solo thread condiviso fra tutti i browser e accetta una domanda alla volta.
 - Le eval (13 casi più un test su due turni) le ho scritte io a partire dai difetti già trovati: sono copertura di regressione, non una misura indipendente della qualità.
 - Nelle guide generali la sezione la sceglie il modello leggendo il sommario, e quanto ci prenda non è ancora misurato: le 35 domande etichettate a mano ([tests/fixtures/domande_guide.json](tests/fixtures/domande_guide.json)) servono a quello, ma la misura richiede il modello.
 - Le guide generali non dichiarano una data di aggiornamento: `updated_at` resta vuoto e la risposta lo dice, invece di citare la data dello scaricamento.
 
 **Valutato e non implementato**
-- *Ricerca ibrida, BM25, reranking, query rewriting, vector database:* caduti insieme al RAG (ADR 2). Migliorare il retrieval su un corpus che non ne ha bisogno sarebbe stato ottimizzare la cosa sbagliata.
-- *TTL differenziati:* preferibili, ma servirebbe la frequenza di cambiamento per sezione (ADR 3).
-- *Judge a runtime:* una chiamata e una latenza in più per controllare a valle ciò che lo schema garantisce a monte (ADR 6).
+- *Ricerca ibrida, BM25, reranking, query rewriting, vector database:* caduti insieme al RAG (vedi 2). Migliorare il retrieval su un corpus che non ne ha bisogno sarebbe stato ottimizzare la cosa sbagliata.
+- *TTL differenziati:* preferibili, ma servirebbe la frequenza di cambiamento per sezione (vedi 3).
+- *Judge a runtime:* una chiamata e una latenza in più per controllare a valle ciò che lo schema garantisce a monte (vedi 6).
 - *Parsing dei PDF:* il contenuto si sovrappone al JSON; restano link da inoltrare.
 - *Ricerca full-text sulle guide generali:* scritta e misurata sul ramo `search-general-information`, non unita — su sette sezioni i primi tre risultati sono già tre quarti del corpus ([ADR 2](#adr-2-nessun-rag-decide-la-forma-del-contenuto)).
 - *Agente proattivo:* solo design. Manca la tabella degli avvisi già visti.
@@ -521,5 +480,3 @@ Dockerfile                 immagine server o assistente (--build-arg COMPONENT)
 pyproject.toml             dipendenze per extra, console script, configurazione pytest
 .env.example               variabili d'ambiente commentate
 ```
-
-I documenti in `docs/` approfondiscono singole sezioni. In caso di disallineamento fa fede questo file.
