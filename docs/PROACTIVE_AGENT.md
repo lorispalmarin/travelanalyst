@@ -1,12 +1,8 @@
-# Agente proattivo: la Sentinella
+# Agente proattivo: Heimdall
 
-Documento di design. La traccia chiede il progetto dell'agente e lascia facoltativa
-l'implementazione, che non è stata fatta. Le misure sulla fonte sono del 16 settembre 2026. La prima
-versione del design, superata da questa, è in
-[storico/agente-proattivo-prima-versione.md](storico/agente-proattivo-prima-versione.md).
+Documento di design.
 
 1. [L'idea](#1-lidea)
-2. [Cosa dice la fonte](#2-cosa-dice-la-fonte)
 3. [Architettura](#3-architettura)
 4. [Componenti](#4-componenti)
 5. [Scheduling](#5-scheduling)
@@ -17,19 +13,18 @@ versione del design, superata da questa, è in
 
 ## 1. L'idea
 
-L'assistente risponde quando un operatore chiede. La Sentinella lavora al contrario: tiene d'occhio
+L'assistente risponde quando un operatore chiede. Heimdall lavora al contrario: tiene d'occhio
 gli avvisi della Farnesina sui Paesi dove l'agenzia ha clienti, e scrive all'operatore quando esce
 qualcosa che deve sapere, senza aspettare una domanda.
 
-| La traccia chiede un agente che… | La Sentinella |
+| La traccia chiede un agente che… | Heimdall |
 |---|---|
 | monitora periodicamente le ultime notizie di un Paese | ogni 15 minuti legge il feed globale degli avvisi di Viaggiare Sicuri, una richiesta per tutti i Paesi; ogni ora ricontrolla i Paesi seguiti |
 | rileva l'insorgere di possibili emergenze di sicurezza, sanitarie, naturali | distingue avvisi nuovi, aggiornamenti e ritiri; un modello classifica categoria e urgenza, e regole deterministiche possono solo alzare l'urgenza |
 | allerta l'utente senza attendere un'interrogazione | scrive nel canale del team a chi segue quel Paese: subito se l'urgenza è immediata, altrimenti nel riepilogo del mattino |
 
 **Per chi.** Gli operatori del customer care. Un operatore *segue* un Paese fino a una data, di
-solito il rientro del cliente, con un comando della CLI dell'assistente:
-`/segui Indonesia 20/09 pratica-4812`. Alla scadenza il seguito si chiude da solo.
+solito il rientro del cliente. Alla scadenza il seguito si chiude da solo.
 
 **Cosa non fa.** Non contatta i clienti e non risponde a domande, che resta il mestiere
 dell'assistente. Non usa fonti diverse da Viaggiare Sicuri: ogni notifica rimanda a un avviso della
@@ -77,23 +72,6 @@ ritirato, il thread e il riepilogo del mattino lo segnalano come «non più pubb
 4. **Nel messaggio fa fede la fonte.** Titolo, date, link e recapiti vengono dalla Farnesina; quello
    che scrive il modello è etichettato come tale e ancorato a una citazione verificata.
 
-## 2. Cosa dice la fonte
-
-Prima di progettare ho misurato come si comportano davvero gli avvisi: i 223 file
-`/ultima_ora/{ISO3}.json` e `/ultima_ora/totale.json`, scaricati il 16 settembre 2026 alle 18:12 e
-confrontati con le copie in cache dei giorni 12–16. Sette fatti decidono il design; il resto del
-documento li cita come F1…F7.
-
-| | Fatto misurato | Conseguenza |
-|---|---|---|
-| **F1** | `totale.json` elenca i 25 avvisi più recenti di tutti i Paesi, dal più nuovo; al 16/09 coprono 29 giorni. Tutti e 25 coincidono per id, titolo e data con quelli dei file per Paese. Alla richiesta condizionale risponde 304 senza corpo. | Una richiesta basta per vedere cosa esce in tutto il mondo: non serve interrogare 223 Paesi a rotazione. |
-| **F2** | Un aggiornamento è un avviso **con id nuovo**, che prende il posto del precedente. Canada, fra il 13 e il 16/09: sparisce `34711` "introduzione misure sanitarie di prevenzione", compare `35442` con lo stesso titolo più "aggiornamento". 43 avvisi attivi su 96 hanno "aggiornamento" nel titolo, e nessuno ha un id vecchio con una data recente, come succederebbe se l'id venisse riusato. | Deduplicare per id trasformerebbe ogni aggiornamento in un'allerta nuova. Serve un livello sopra l'avviso, l'**evento**, riconosciuto dalla radice del titolo. |
-| **F3** | `tsModifica` è una data redazionale, arrotondata al quarto d'ora, e può precedere di molto la pubblicazione. Madagascar `35419`: datato 10/09 alle 10:45, file comparso alle 17:04. Perù `35228`: datato 1° luglio, con un id fra quelli usciti il 18 agosto. | Niente cursore temporale ("dammi ciò che è più recente dell'ultimo visto"): avrebbe perso il Perù. Le novità si trovano per differenza fra insiemi di id. |
-| **F4** | `tipologia` ha due soli valori, `sicurezza` (76) e `sanita` (20). Gli avvisi su eventi naturali (16: terremoti, eruzioni, incendi, alluvioni, frane, tifoni) sono tutti `sicurezza`. La stessa notizia cambia etichetta da un Paese all'altro: Ebola è `sanita` in Congo, Malawi, Uganda e Zambia, `sicurezza` in Kenya, Ruanda e Tanzania. | Le categorie della traccia non si leggono dalla fonte: vanno ricavate dal testo. `tipologia` resta un indizio. |
-| **F5** | La stessa notizia esce per più Paesi insieme: "SICUREZZA" per 7 Paesi del Golfo il 25/07 (id fra 35049 e 35056), "reperibilità carburante" per 6 Paesi il 23/06, lo stesso avviso con lo stesso testo per Israele e per i Territori Palestinesi. | I messaggi si raggruppano per giro della sonda, non per Paese. |
-| **F6** | `Last-Modified` cambia anche quando il contenuto no. Nelle 24 ore prima del censimento 26 file per Paese risultano modificati, ma gli avvisi nuovi sono 5; Thailandia e Cina, confrontate con la cache, hanno ETag e contenuto identici. L'ETag è l'MD5 del contenuto (su `totale.json` coincide con `x-goog-hash`). | Si rivalida con l'ETag, come fa già il client, e si confrontano gli avvisi, mai le date dei file. |
-| **F7** | Nessun canale push. L'HTML dichiara un feed RSS, `/assets/rss.xml`, che esiste ma è vuoto e fermo al 2 luglio 2026; nel bundle dell'app non ci sono websocket, `EventSource` né notifiche. | Il polling è l'unica strada, e `totale.json` è il feed che la fonte aggiorna davvero. |
-
 ## 3. Architettura
 
 ```mermaid
@@ -112,7 +90,7 @@ flowchart LR
         CACHE[("client e cache<br/>ETag, stale-if-error")]
     end
 
-    subgraph G_SEN["Sentinella, processo nuovo"]
+    subgraph G_SEN["Heimdall, processo nuovo"]
         SCH["scheduler<br/>e watchdog"]
         SON["sonda"]
         RIL["rilevatore"]
@@ -153,10 +131,9 @@ flowchart LR
 Un secondo giro, ogni ora, chiama `get_allerte` sui soli Paesi seguiti: il feed mostra gli avvisi
 che compaiono, non quelli ritirati.
 
-**Dove gira.** Un terzo processo, `travelanalyst-sentinella`, accanto a server e assistente, con
-un'immagine dallo stesso Dockerfile (`--build-arg COMPONENT=sentinella`). È un client del server MCP
+**Dove gira.** Un terzo processo, `travelanalyst-Heimdall`, accanto a server e assistente. È un client del server MCP
 come l'assistente: stesse dipendenze e stesse credenziali del modello, che la traccia riserva appunto
-ad assistente e agente. Lo stato è un file SQLite suo, `var/sentinella.sqlite3`, separato dalla cache
+ad assistente e agente. Lo stato è un file SQLite suo, `var/Heimdall.sqlite3`, separato dalla cache
 del server: la cache si può cancellare in qualsiasi momento, lo storico di cosa è stato notificato a
 chi no.
 
@@ -165,10 +142,10 @@ chi no.
 | Pezzo | Stato |
 |---|---|
 | Client HTTP, cache, rivalidazione con ETag, stale-if-error ([client.py](../viaggiaresicuri_mcp/client.py)) | esiste: la sonda lo eredita passando dal server |
-| Validazione e normalizzazione degli avvisi: HTML in testo, `tsModifica` in data, `""` in `null` ([models.py](../viaggiaresicuri_mcp/models.py)) | esiste: la Sentinella non scrive parser |
+| Validazione e normalizzazione degli avvisi: HTML in testo, `tsModifica` in data, `""` in `null` ([models.py](../viaggiaresicuri_mcp/models.py)) | esiste: Heimdall non scrive parser |
 | `get_allerte`, `get_embassy_contacts`, `find_country` | esistono |
 | `get_ultimi_avvisi` su `totale.json` | nuovo, nel server |
-| Sonda, rilevatore, triage, politica, outbox, dispatcher, API | nuovi, pacchetto `sentinella/` |
+| Sonda, rilevatore, triage, politica, outbox, dispatcher, API | nuovi, pacchetto `Heimdall/` |
 | Comandi `/segui`, `/seguiti`, `/smetti` | nuovi, nella CLI dell'assistente |
 
 ## 4. Componenti
@@ -176,7 +153,7 @@ chi no.
 ### 4.1 Seguiti
 
 Un seguito è una riga: Paese, operatore, data di fine, nota. Si gestisce dalla CLI dell'assistente,
-che chiama l'API HTTP della Sentinella.
+che chiama l'API HTTP di Heimdall.
 
 ```
 › /segui Perù 30/09 pratica-4812
@@ -189,19 +166,6 @@ La fonte è stata consultata adesso e riporta 6 avvisi in corso per Peru'.
   23/07  PERU': stato di emergenza in cinque Distretti di Junín.
   01/07  PERU': STATO DI EMERGENZA NELLA PROVINCIA DI LIMA METROPOLITANA E NELLA PROVINCIA COSTITUZIONALE DEL CALLAO.
 ```
-
-- Il Paese si risolve con `find_country`, con le stesse regole dell'assistente: se è ambiguo si
-  chiede.
-- La data è facoltativa: di default 30 giorni, al massimo 180. Il giorno prima della scadenza il
-  riepilogo lo ricorda.
-- Gli avvisi già in corso compaiono nella risposta al comando e non diventano allerte nel canale.
-- L'operatore è l'email in `TRAVELANALYST_OPERATORE`; l'adattatore del canale la traduce
-  nell'utente da menzionare.
-- `nota` contiene solo il riferimento della pratica, mai dati del cliente.
-
-Perché un comando e non un tool che l'assistente chiama da una frase come "avvisami se succede
-qualcosa in Perù": il server MCP resta in sola lettura su una fonte pubblica, e un'azione con effetti
-la decide l'operatore scrivendola, non un modello interpretandola.
 
 ### 4.2 Scheduler e watchdog
 
@@ -219,7 +183,7 @@ Un solo processo asyncio con APScheduler; l'API FastAPI gira nello stesso event 
 - **Watchdog.** Tre giri del feed falliti di fila, circa 45 minuti, producono un messaggio di
   sospensione nel canale; il primo giro riuscito, un messaggio di ripresa e un `giro_seguiti`
   immediato. Un giro è fallito se il tool risponde con un errore o se serve una copia stale.
-- **Chi sorveglia la Sentinella.** A ogni giro riuscito parte un ping verso un monitor esterno (dead
+- **Chi sorveglia Heimdall.** A ogni giro riuscito parte un ping verso un monitor esterno (dead
   man's switch). Se il processo si ferma, il suo silenzio è indistinguibile da una giornata
   tranquilla: deve accorgersene qualcun altro.
 - **Una sola istanza.** Un lease in SQLite, rinnovato a ogni giro: durante un deploy la seconda
@@ -414,7 +378,7 @@ preso da `get_embassy_contacts`; avvertenza. Tutto ciò che non viene dal triage
 
 ### 4.8 Stato
 
-Un file SQLite della Sentinella.
+Un file SQLite delHeimdall.
 
 | Tabella | Una riga è | Serve a |
 |---|---|---|
@@ -536,7 +500,7 @@ Paese pesa in media 0,8 KB: meno di 1 MB al giorno. Il principio dell'ADR 4 sul 
 un'infrastruttura pubblica regge anche con un processo sempre acceso.
 
 **Quanto è veloce.** Un avviso arriva nel canale al più 15 minuti e mezzo dopo che il file è cambiato
-sulla fonte. Il ritardo che pesa di più sta prima, fra l'evento e la pubblicazione, e la Sentinella
+sulla fonte. Il ritardo che pesa di più sta prima, fra l'evento e la pubblicazione, e Heimdall
 non lo può ridurre (§ 8.6). Scendere a 5 minuti si può, abbassando `VS_ALERTS_TTL_SECONDS` insieme
 alla cadenza: costa poco, ma il guadagno sta sotto il rumore di una fonte che data i suoi avvisi con
 ore di scarto (F3).
@@ -559,7 +523,7 @@ Il criterio è quello delle regole in § 1: la deduplica decide *dove* arriva un
 
 ### Duplicati: sei casi, tutti osservati sulla fonte
 
-| Caso | Esempio reale | Come si comporta la Sentinella |
+| Caso | Esempio reale | Come si comporta Heimdall |
 |---|---|---|
 | Lo stesso avviso, rivisto a ogni giro | qualsiasi avviso, ogni 15 minuti | id noto e testo uguale: nessun cambiamento |
 | Aggiornamento con id nuovo | Canada, `34711` sostituito da `35442` (F2) | stessa radice, quindi versione nuova dello stesso evento: risposta nel thread |
@@ -650,7 +614,7 @@ Finché non riprendo, l'assenza di allerte in questo canale non vuol dire che no
 ### Feedback
 
 - "Utile" e "Non utile" su ogni allerta; "Doveva essere immediata" su ogni voce del riepilogo.
-- Il clic arriva a `POST /feedback` della Sentinella, che verifica la firma della richiesta con il
+- Il clic arriva a `POST /feedback` delHeimdall, che verifica la firma della richiesta con il
   segreto dell'app di chat.
 - È l'unico giudice della precisione (§ 8.3), e ogni "Doveva essere immediata" diventa un caso di
   eval.
@@ -664,7 +628,7 @@ Finché non riprendo, l'assenza di allerte in questo canale non vuol dire che no
 | pulsanti | Block Kit e interactivity | Adaptive Card con `Action.Submit` |
 | menzione a partire dall'email | `users.lookupByEmail` | entità `mention` con l'UPN |
 
-Il design non dipende dalla scelta: la Sentinella parla con un adattatore che espone `pubblica`,
+Il design non dipende dalla scelta: Heimdall parla con un adattatore che espone `pubblica`,
 `rispondi` e `utente`.
 
 ### Trasparenza
@@ -677,7 +641,7 @@ recapiti non passano dal modello.
 
 ### 8.1 Dove sta l'agente
 
-La Sentinella è autonoma nel senso che conta per la traccia: parte da sola, osserva, decide cosa è
+Heimdall è autonoma nel senso che conta per la traccia: parte da sola, osserva, decide cosa è
 cambiato, quanto è urgente, chi avvisare e dove, e sorveglia se stessa. Il modello entra in un solo
 punto, quello in cui serve leggere un testo (F4). Tutto il resto è deterministico e si verifica con i
 payload reali.
@@ -698,11 +662,11 @@ Quelle sullo scheduling sono in § 5.
 | triage con modello e regole sul titolo | `tipologia` della fonte | due valori, nessuna categoria naturale, etichette incoerenti (F4) |
 | | solo regole | sul titolo sfuggono i titoli generici come "SICUREZZA"; sul testo scattano su metà del feed |
 | | ciclo ReAct | § 8.1 |
-| nessuna revisione prima dell'invio | coda di revisione umana per gli avvisi sotto soglia | l'umano nel ciclo è già il destinatario, e la Sentinella non contatta i clienti: una coda rallenterebbe proprio le emergenze |
+| nessuna revisione prima dell'invio | coda di revisione umana per gli avvisi sotto soglia | l'umano nel ciclo è già il destinatario, e Heimdall non contatta i clienti: una coda rallenterebbe proprio le emergenze |
 | un messaggio per giro, aggiornamenti nei thread | tetto di N notifiche per Paese al giorno | il tetto scarta il messaggio N+1, che durante una crisi è quello che conta |
 | | rinotificare solo se la gravità sale | sparirebbero gli aggiornamenti che non cambiano gravità, e gli aggiornamenti sono quasi metà degli avvisi (F2) |
-| stato in un SQLite della Sentinella | tabelle nella cache del server | la cache si rigenera e vive nel container del server; lo storico delle notifiche non si rigenera |
-| sonda che passa dal server MCP | la Sentinella importa il client come libreria | due processi sulla stessa cache SQLite, oppure due cache, e la fonte conosciuta da due componenti invece che da uno |
+| stato in un SQLite delHeimdall | tabelle nella cache del server | la cache si rigenera e vive nel container del server; lo storico delle notifiche non si rigenera |
+| sonda che passa dal server MCP | Heimdall importa il client come libreria | due processi sulla stessa cache SQLite, oppure due cache, e la fonte conosciuta da due componenti invece che da uno |
 | comandi `/segui` espliciti | tool MCP di scrittura chiamato dall'assistente in linguaggio naturale | il server resta in sola lettura; un'azione con effetti la scrive l'operatore |
 | solo Viaggiare Sicuri | segnali esterni: GDACS per le catastrofi naturali, OMS per i focolai | § 8.7 |
 | chat del team | email, UI web dell'assistente | § 7 |
@@ -721,7 +685,7 @@ Quelle sullo scheduling sono in § 5.
 | Copertura | giri riusciti sul totale dei giri, minuti di sospensione | almeno 99% dei giri | `giri` |
 | Costo del modello | chiamate e token al giorno | informativa | `triage` |
 
-Il time-to-detect misura la Sentinella, non il sistema intero: il ritardo fra evento e pubblicazione
+Il time-to-detect misura Heimdall, non il sistema intero: il ritardo fra evento e pubblicazione
 non è misurabile, perché la fonte non dichiara quando è avvenuto l'evento (§ 8.6).
 
 **Prima di andare in esercizio: l'eval del triage.**
@@ -752,7 +716,7 @@ non è misurabile, perché la fonte non dichiara quando è avvenuto l'evento (§
 | Il modello classifica male | un'emergenza finisce nel riepilogo | regole sul titolo che alzano l'urgenza; eval prima del rilascio; "Doveva essere immediata"; il riepilogo arriva comunque |
 | Il modello inventa nella sintesi | un'informazione falsa nel canale | citazione verificata alla lettera; titolo, date, link e recapiti mai dal modello; etichetta IA |
 | Fonte o server MCP irraggiungibili | silenzio scambiato per calma | copie stale fuori dal confronto; messaggi di sospensione e di ripresa |
-| La Sentinella si ferma | nessuno se ne accorge, perché il silenzio è il suo stato normale | ping a un monitor esterno a ogni giro; il riepilogo delle 08:30 riporta i giri riusciti, e se non arriva è già un segnale |
+| Heimdall si ferma | nessuno se ne accorge, perché il silenzio è il suo stato normale | ping a un monitor esterno a ogni giro; il riepilogo delle 08:30 riporta i giri riusciti, e se non arriva è già un segnale |
 | Due istanze attive durante un deploy | messaggi doppi | lease in SQLite; chiave unica nell'outbox |
 | Canale irraggiungibile | messaggi non consegnati | outbox con tentativi; gli invii falliti compaiono nel riepilogo |
 | Troppi messaggi | il canale viene silenziato, e con lui le emergenze | un messaggio per giro, aggiornamenti nei thread, seguiti che scadono, volume misurato |
@@ -801,7 +765,7 @@ non è misurabile, perché la fonte non dichiara quando è avvenuto l'evento (§
 | Gravità | rank da mappa manuale, soglia, coda di revisione | due livelli di urgenza, regole che alzano, feedback | la coda rallenta le emergenze, e l'umano nel ciclo è già il destinatario |
 | Aggiornamenti | nuova notifica solo se il rank sale | sempre nel thread | quasi metà degli avvisi sono aggiornamenti |
 | Volume | tetto per Paese e finestra di quiete | un messaggio per giro | il tetto nasconde il messaggio che conta |
-| Stato | tabelle nella SQLite della cache | SQLite della Sentinella | cicli di vita diversi |
+| Stato | tabelle nella SQLite della cache | SQLite delHeimdall | cicli di vita diversi |
 
 ## 9. Piano di implementazione
 
@@ -833,7 +797,7 @@ né canale.
 **Struttura.**
 
 ```
-sentinella/
+Heimdall/
   config.py        cadenze, canale, percorso dello stato
   stato.py         SQLite: tabelle, lease, transazioni
   sonda.py         client MCP: feed e avvisi per Paese → osservazioni
@@ -848,16 +812,16 @@ sentinella/
 
 Fuori dal pacchetto cambiano poche cose: il tool e il modello del feed nel server (`alerts.py`,
 `models.py`, `server.py`), i comandi e il filtro dei tool nell'assistente (`cli.py`, `mcp_tools.py`),
-un extra `sentinella` in `pyproject.toml` e il valore `COMPONENT=sentinella` nel Dockerfile.
+un extra `Heimdall` in `pyproject.toml` e il valore `COMPONENT=Heimdall` nel Dockerfile.
 
 **Configurazione.**
 
 | Variabile | Default | Uso |
 |---|---|---|
 | `MCP_SERVER_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | come l'assistente | server MCP e modello del triage |
-| `SENTINELLA_GIRO_FEED_SECONDS`, `SENTINELLA_GIRO_SEGUITI_SECONDS` | `930`, `3600` | cadenze |
-| `SENTINELLA_RIEPILOGO` | `08:30` | ora del riepilogo, Europe/Rome |
-| `SENTINELLA_STATO` | `var/sentinella.sqlite3` | file dello stato |
+| `Heimdall_GIRO_FEED_SECONDS`, `Heimdall_GIRO_SEGUITI_SECONDS` | `930`, `3600` | cadenze |
+| `Heimdall_RIEPILOGO` | `08:30` | ora del riepilogo, Europe/Rome |
+| `Heimdall_STATO` | `var/Heimdall.sqlite3` | file dello stato |
 | `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_CANALE` | — | canale |
-| `SENTINELLA_HEARTBEAT_URL` | vuoto | monitor esterno |
-| `SENTINELLA_URL`, `TRAVELANALYST_OPERATORE` | —, — | lato CLI: dove trovare l'API e chi sta scrivendo |
+| `Heimdall_HEARTBEAT_URL` | vuoto | monitor esterno |
+| `Heimdall_URL`, `TRAVELANALYST_OPERATORE` | —, — | lato CLI: dove trovare l'API e chi sta scrivendo |
