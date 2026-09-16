@@ -16,9 +16,10 @@ assistente LangChain per il customer care che risponde solo attraverso quei tool
 7. [Fonti e discovery](#fonti-e-discovery)
 8. [Decisioni progettuali](#decisioni-progettuali)
 9. [Comportamento in caso di errore](#comportamento-in-caso-di-errore)
-10. [Agente proattivo (design)](#agente-proattivo-design)
-11. [Assunzioni, limiti noti, non implementato](#assunzioni-limiti-noti-non-implementato)
-12. [Struttura del repo](#struttura-del-repo)
+10. [Test](#test)
+11. [Agente proattivo (design)](#agente-proattivo-design)
+12. [Assunzioni, limiti noti, non implementato](#assunzioni-limiti-noti-non-implementato)
+13. [Struttura del repo](#struttura-del-repo)
 
 ## Quickstart
 
@@ -275,7 +276,7 @@ elenca gli endpoint senza descriverne i campi, e in un punto è sbagliata, perch
 | `/ultima_ora/{ISO3}.json` | `{ultima_ora: [...], focus: [...]}` | sì |
 | `/schede_paese/pdf/{ISO3}.pdf` | PDF della scheda | come link |
 | `/schede_paese/pdf/{ISO3}_contactDetails.pdf` | PDF di una pagina con i soli recapiti | come link |
-| `/ultima_ora/totale.json` | feed globale recente, troncato | no: non è un superset dei per-Paese |
+| `/ultima_ora/totale.json` | feed globale recente, troncato ai 25 avvisi più recenti | no per l'assistente: non è un superset dei per-Paese. È però il feed dei cambiamenti dell'[agente proattivo](#agente-proattivo-design) |
 | `/approfondimenti/{nome}.json` | guide generali non legate a un Paese | sì: `preparaunviaggio` e `documentidiviaggio` |
 | `/marker/marker_{ISO3}.json` | lista | no: sempre `[]` nei campioni |
 
@@ -410,16 +411,96 @@ Due distinzioni sono il motivo di tutto il resto. "Nessun avviso pubblicato" des
 non il Paese. Da una copia locale senza avvisi non segue che non ce ne siano adesso: in stale il
 sistema dichiara di non poter verificare. Entrambe stanno nel dato del tool, non solo nel prompt.
 
+## Test
+
+**Cosa è stato eseguito.** Il 16 settembre 2026 le 35 domande di
+[tests/fixtures/domande_guide.json](tests/fixtures/domande_guide.json) (30 con la risposta nelle
+guide generali, 5 fuori copertura) sono state poste all'assistente, una conversazione nuova per
+domanda, in due esecuzioni. Modello `gpt-5.6-luna` via Responses API su Azure OpenAI, server MCP con
+il codice di `main`, guide online identiche alle fixture (ultima modifica 08/07/2026 e 06/08/2026).
+Ogni risposta è stata confrontata con il testo della fonte; URL citati e sezioni aperte sono
+controllati in automatico. Risposta, tool, tempo, token ed esito di ogni domanda stanno nel campo
+`assistente` del file; la prima esecuzione, senza token, in
+[tests/fixtures/domande_guide_esecuzione1.json](tests/fixtures/domande_guide_esecuzione1.json).
+
+**Esiti.** *Corretta con riserve*: fatti principali corretti, con un'aggiunta assente dalla fonte o
+un'imprecisione. *Fuorviante*: coerente con la fonte ma non vera alla data del test.
+
+| Esito | Esecuzione 1 | Esecuzione 2 |
+|---|---|---|
+| Corretta | 25 su 30 | 26 su 30 |
+| Corretta con riserve | 2 su 30 (1, 4) | 1 su 30 (4) |
+| Fuorviante | 1 su 30 (8) | 1 su 30 (8) |
+| Dichiarata non trattata, ma presente nella fonte | 2 su 30 (10, 24) | 2 su 30 (10, 24) |
+| Fuori copertura, dichiarata non trattata | 4 su 5 (31, 33, 34, 35) | 4 su 5 (31, 33, 34, 35) |
+| Fuori copertura, risposta dalla scheda paese con riserve | 1 su 5 (32) | 1 su 5 (32) |
+
+**Controlli automatici.**
+
+| | Esecuzione 1 | Esecuzione 2 |
+|---|---|---|
+| Sezione giusta aperta per prima, su 30 | 28 | 27 |
+| Nessuna sezione aperta, su 30 | 2 (10, 24) | 2 (10, 24) |
+| URL citati assenti dalla fonte | 0 | 1 (24) |
+
+Nella seconda esecuzione la domanda 27 ha chiesto prima un `id` inesistente e ha aperto la sezione
+giusta al secondo tentativo.
+
+**Latenza** per domanda, dall'invio alla risposta completa.
+
+| | Esecuzione 1 | Esecuzione 2 |
+|---|---|---|
+| Mediana | 8,5 s | 8,6 s |
+| Minimo | 2,1 s | 2,1 s |
+| Massimo | 14,7 s | 13,0 s |
+
+**Token** della seconda esecuzione: somma di tutte le chiamate al modello di ogni domanda. I token in
+uscita comprendono quelli di ragionamento.
+
+| | Totale | Mediana per domanda | Minimo | Massimo |
+|---|---|---|---|---|
+| Chiamate al modello | 102 | 3 | 1 | 4 |
+| Token in ingresso | 479.545 | 14.246 | 3.937 | 18.753 |
+| di cui dalla cache | 419.556 | 12.362 | 3.934 | 17.005 |
+| Token in uscita | 11.002 | 304 | 60 | 486 |
+| di cui ragionamento | 1.146 | 23 | 0 | 128 |
+| Totale | 490.547 | 14.491 | 3.997 | 19.128 |
+
+**Costo stimato.** Prezzi di listino di `gpt-5.6-luna` consultati il 16/09/2026, per milione di
+token: 0,20 $ in ingresso, 0,02 $ in ingresso dalla cache, 0,25 $ per le scritture in cache, 1,20 $
+in uscita ([OpenAI](https://developers.openai.com/api/docs/models/gpt-5.6-luna)). Su Azure OpenAI
+valgono gli stessi prezzi per il deployment Standard Global dal 1° agosto 2026
+([Microsoft Q&A](https://learn.microsoft.com/en-us/answers/questions/5972276/pricing-gpt-5-6-luna-modle));
+gli altri tipi di deployment hanno prezzi diversi. Nessuna richiesta supera i 272.000 token in
+ingresso, soglia oltre la quale il listino aumenta. I dati d'uso non distinguono le scritture in
+cache: i 59.989 token in ingresso non letti dalla cache sono calcolati a 0,20 $ e, tra parentesi, a
+0,25 $.
+
+| | Costo |
+|---|---|
+| Ingresso dalla cache | 0,0084 $ |
+| Ingresso non dalla cache | 0,0120 $ (0,0150 $) |
+| Uscita | 0,0132 $ |
+| **Totale, 35 domande** | **0,0336 $ (0,0366 $)** |
+| Per domanda, media | 0,000960 $ (0,001045 $) |
+| Per domanda, mediana | 0,000969 $ (0,001065 $) |
+| Per domanda, minimo (domanda 35) | 0,000151 $ (0,000151 $) |
+| Per domanda, massimo (domanda 16) | 0,001494 $ (0,001659 $) |
+| Proiezione lineare su 1.000 domande | 0,96 $ (1,05 $) |
+
 ## Agente proattivo (design)
 
 Solo progettato, non implementato; il design completo è in [docs/PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md).
 
-- **Architettura:** scheduler → poller su `ultima_ora/{ISO3}` (riusa client e cache) → confronto con lo stato già visto → valutazione → outbox → dispatcher.
-- **Scheduling a fasce di rischio:** Paesi caldi ogni 5 minuti (avvisi attivi o pratiche in partenza), tiepidi ogni ora, freddi ogni 12 ore. Il costo resta sostenibile grazie al 304 a zero byte.
-- **Rilevamento:** `id` dell'avviso come chiave naturale. `id` nuovo → avviso nuovo; `tsModifica` avanzato → aggiornamento. Lo stato sta in una tabella nella stessa SQLite.
-- **Deduplica e falsi positivi:** escalation-only (si rinotifica solo se la gravità sale), soglia con coda di revisione umana, tetto per Paese con passaggio a digest, finestra di quiete.
-- **Canale:** outbox transazionale con chiave di idempotenza; email, Slack o webhook, con il PDF dei recapiti.
-- **Metriche:** precision giudicata da chi riceve, time-to-detect (`first_seen − tsModifica`), duplicati soppressi.
+Un operatore *segue* un Paese fino a una data (di solito il rientro del cliente) con un comando della CLI; l'agente sorveglia gli avvisi e scrive nel canale del team a chi quel Paese lo segue. Il design nasce da un censimento dei 223 file `ultima_ora/{ISO3}.json` e di `totale.json` del 16 settembre 2026.
+
+- **Architettura:** scheduler → sonda (tool MCP, quindi client e cache già esistenti) → rilevatore → triage → politica di notifica → outbox → dispatcher → canale. Lo stato è un SQLite dell'agente, separato dalla cache del server.
+- **Scheduling:** `totale.json` elenca i 25 avvisi più recenti di tutti i Paesi, identici a quelli dei file per Paese: **una** richiesta ogni 15 minuti e mezzo copre il mondo intero, più un giro orario sui soli Paesi seguiti per vedere i ritiri. Circa 810 richieste al giorno con 30 Paesi seguiti, quasi tutte 304 a zero byte.
+- **Rilevamento:** differenza fra insiemi di `id`, mai date. Un aggiornamento è un avviso con **id nuovo** che sostituisce il precedente (Canada, `34711` → `35442`): 43 avvisi attivi su 96 sono aggiornamenti, e deduplicare per solo `id` li trasformerebbe tutti in allerte nuove. `tsModifica` è una data redazionale che può precedere di settimane la pubblicazione.
+- **Emergenze:** `tipologia` ha due valori e non distingue gli eventi naturali (16 fra terremoti, eruzioni e incendi sono tutti `sicurezza`), quindi categoria e urgenza le ricava un modello con output strutturato e citazione verificata; regole a parole chiave sul titolo possono solo alzare l'urgenza.
+- **Duplicati e falsi positivi:** due regole — il triage decide *quando* notificare, la deduplica *dove*, nessuno dei due *se*. Un messaggio per giro con i Paesi raggruppati, aggiornamenti nei thread, ritiri dichiarati come "non più pubblicato".
+- **Canale:** chat del team (Slack o Teams) con menzione di chi segue il Paese, thread per gli aggiornamenti, riepilogo delle 08:30 e pulsanti di feedback; outbox transazionale con chiave di idempotenza.
+- **Metriche:** time-to-detect rispetto al `Last-Modified` del file, precisione dai voti, allerte mancate, volume per operatore, copertura delle sonde.
 - **Limite:** la fonte pubblica dopo aver verificato, quindi il rilevamento è rapido rispetto alla pubblicazione, non all'evento.
 
 ## Assunzioni, limiti noti, non implementato
@@ -438,7 +519,7 @@ Solo progettato, non implementato; il design completo è in [docs/PROACTIVE_AGEN
 - "Solo tool MCP" è imposto dal prompt: il modello non ha altri strumenti, ma nulla gli impedisce di aggiungere conoscenza propria.
 - La conversazione vive in memoria e si perde al riavvio. La UI web ha un solo thread condiviso fra tutti i browser e accetta una domanda alla volta.
 - Le eval (13 casi più un test su due turni) le ho scritte io a partire dai difetti già trovati: sono copertura di regressione, non una misura indipendente della qualità.
-- Nelle guide generali la sezione la sceglie il modello leggendo il sommario, e quanto ci prenda non è ancora misurato: le 35 domande etichettate a mano ([tests/fixtures/domande_guide.json](tests/fixtures/domande_guide.json)) servono a quello, ma la misura richiede il modello.
+- Nelle guide generali la sezione la sceglie il modello leggendo il sommario: nel test ha aperto per prima quella giusta in 28 domande su 30, e in 2 non ne ha aperta nessuna ([Test](#test)).
 - Le guide generali non dichiarano una data di aggiornamento: `updated_at` resta vuoto e la risposta lo dice, invece di citare la data dello scaricamento.
 
 **Valutato e non implementato**
@@ -447,7 +528,7 @@ Solo progettato, non implementato; il design completo è in [docs/PROACTIVE_AGEN
 - *Judge a runtime:* una chiamata e una latenza in più per controllare a valle ciò che lo schema garantisce a monte (vedi 6).
 - *Parsing dei PDF:* il contenuto si sovrappone al JSON; restano link da inoltrare.
 - *Ricerca full-text sulle guide generali:* scritta e misurata sul ramo `search-general-information`, non unita — su sette sezioni i primi tre risultati sono già tre quarti del corpus ([ADR 2](#adr-2-nessun-rag-decide-la-forma-del-contenuto)).
-- *Agente proattivo:* solo design. Manca la tabella degli avvisi già visti.
+- *Agente proattivo:* solo design ([docs/PROACTIVE_AGENT.md](docs/PROACTIVE_AGENT.md)). Mancano il tool sul feed globale, lo stato degli avvisi già visti e il canale di notifica.
 
 ## Struttura del repo
 

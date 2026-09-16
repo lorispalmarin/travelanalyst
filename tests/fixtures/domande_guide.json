@@ -4,6 +4,36 @@
     "domanda": "Un cliente ha perso il passaporto all'estero: che documento gli possono rilasciare per rientrare in Italia?",
     "risposta_in": {
       "documentidiviaggio/furtosmarrimentodidocumenti": "un nuovo Passaporto oppure un Documento di viaggio provvisorio (c.d.ETD - Emergency Travel Document (provvisorio) può essere rilasciato"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Per il rientro in Italia, al cliente può essere rilasciato dall’ufficio consolare italiano:\n\n- un nuovo **passaporto**, oppure\n- un **Documento di viaggio provvisorio (ETD – Emergency Travel Document)**, normalmente valido per un viaggio di sola andata verso l’Italia.\n\nIl rilascio avviene previa autorizzazione dell’autorità italiana competente per la residenza e, in caso di smarrimento o furto del passaporto, dopo le formalità richieste dal consolato.\n\n**Fonte:** [Furto o smarrimento di documenti. Documento di viaggio provvisorio](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio) — data di aggiornamento non riportata dalla guida.  \nApprofondimenti ufficiali: [Passaporto temporaneo](https://www.esteri.it/it/servizi-consolari-e-visti/italiani-all-estero/documenti_di_viaggio/passaporto/) e [ETD](https://www.esteri.it/it/servizi-consolari-e-visti/italiani-all-estero/documenti_di_viaggio/etd/).\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico e contattare il consolato italiano competente. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/furtosmarrimentodidocumenti"
+          }
+        }
+      ],
+      "secondi": 7.7,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13576,
+        "input_da_cache": 12383,
+        "output": 363,
+        "output_ragionamento": 15,
+        "totale": 13939
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Nuovo passaporto o ETD per il rientro, previa autorizzazione dell'autorità competente per residenza; link esatti. Rispetto alla prima esecuzione non aggiunge più la denuncia alle autorità locali."
+      }
     }
   },
   {
@@ -11,6 +41,36 @@
     "domanda": "Se i documenti rubati durante un viaggio vengono ritrovati, a chi vengono restituiti?",
     "risposta_in": {
       "documentidiviaggio/restituzionecarateidenta": "vengono di norma restituiti agli Uffici consolari nella cui circoscrizione è avvenuto il furto o lo smarrimento"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "I documenti rubati e poi ritrovati all’estero vengono di norma restituiti all’**Ufficio consolare italiano competente per la circoscrizione in cui è avvenuto il furto**. Il legittimo titolare può recuperarli:\n\n- direttamente allo sportello consolare;\n- tramite servizio postale, con spese di spedizione a proprio carico.\n\nÈ possibile contattare il Consolato competente per verificare se i documenti sono stati ritrovati. Se non vengono reclamati entro un anno dalla restituzione da parte delle autorità locali, possono essere distrutti senza ulteriori comunicazioni.\n\n**Fonte:** [Restituzione di carte identità italiane rinvenute all’estero](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio) — guida generale, senza data di aggiornamento pubblicata. La stessa pagina rimanda anche alle indicazioni del [Ministero degli Esteri sui passaporti rinvenuti all’estero](https://www.esteri.it/it/servizi-consolari-e-visti/italiani-all-estero/documenti_di_viaggio/passaporto/).\n\nLe informazioni possono variare: prima della partenza o della richiesta verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/restituzionecarateidenta"
+          }
+        }
+      ],
+      "secondi": 10.2,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13581,
+        "input_da_cache": 12365,
+        "output": 361,
+        "output_ragionamento": 23,
+        "totale": 13942
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Ufficio consolare della circoscrizione del furto, ritiro allo sportello o per posta, distruzione dopo un anno; link della fonte."
+      }
     }
   },
   {
@@ -18,6 +78,36 @@
     "domanda": "Per quanto tempo il consolato tiene i documenti ritrovati prima di distruggerli?",
     "risposta_in": {
       "documentidiviaggio/restituzionecarateidenta": "Trascorso il periodo massimo di un anno di giacenza"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Il consolato conserva i documenti ritrovati per **un periodo massimo di un anno**, calcolato da quando le autorità locali li restituiscono all’ufficio consolare. Se il proprietario non li reclama entro tale termine, vengono distrutti **senza ulteriori comunicazioni**.\n\nIl ritiro può avvenire allo sportello consolare oppure tramite servizio postale, con costi a carico del connazionale. Per verificare se il documento è stato ritrovato, va contattato l’ufficio consolare competente.\n\n**Fonte:** [Restituzione di carte d’identità italiane rinvenute all’estero](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio) — data di aggiornamento non indicata dalla guida.  \nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/restituzionecarateidenta"
+          }
+        }
+      ],
+      "secondi": 8.8,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13574,
+        "input_da_cache": 12365,
+        "output": 274,
+        "output_ragionamento": 18,
+        "totale": 13848
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Un anno dalla restituzione da parte delle autorità locali, poi distruzione senza ulteriori comunicazioni."
+      }
     }
   },
   {
@@ -25,6 +115,36 @@
     "domanda": "Un bambino di 10 anni può andare all'estero con i nonni, senza i genitori?",
     "risposta_in": {
       "documentidiviaggio/documentiperviaggiallesteroperminori": "Dichiarazione di Accompagnamento dei genitori o di chi ne fa le veci, vistata da"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Sì, un bambino italiano di 10 anni può viaggiare all’estero con i nonni, ma deve avere:\n\n- un documento di viaggio individuale: passaporto oppure carta d’identità valida per l’espatrio;\n- una **Dichiarazione di Accompagnamento** rilasciata dai genitori o da chi ne fa le veci e vistata dalla **Questura**. La dichiarazione deve indicare i nonni come accompagnatori, la destinazione e il viaggio; può riguardare un solo viaggio, con durata massima di sei mesi;\n- in alternativa, i nomi degli accompagnatori possono essere indicati sul passaporto del minore. Prima di acquistare il biglietto va verificato che la compagnia di trasporto accetti il minore affidato all’accompagnatore.\n\nPer i minori di 14 anni, la fonte indica inoltre che i genitori o chi ne fa le veci possono essere indicati sulla carta d’identità; se l’indicazione manca, consiglia di portare anche un certificato di stato di famiglia o un estratto di nascita, qualora richiesto dalle autorità di frontiera.\n\n**Fonte:** [Documenti per viaggi all’estero di minori – Viaggiare Sicuri](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio). La guida non riporta una data di aggiornamento.\n\nLe informazioni possono variare: prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico, inclusi i requisiti del Paese di destinazione e della compagnia di trasporto. Non sostituiscono pareri legali.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/documentiperviaggiallesteroperminori"
+          }
+        }
+      ],
+      "secondi": 8.3,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13945,
+        "input_da_cache": 12364,
+        "output": 419,
+        "output_ragionamento": 14,
+        "totale": 14364
+      },
+      "verifica": {
+        "esito": "corretta con riserve",
+        "nota": "Dichiarazione di accompagnamento, un solo viaggio, massimo sei mesi: corretti. Come nella prima esecuzione la verifica con la compagnia di trasporto è riferita al viaggio con i nonni, mentre la fonte la chiede per il minore affidato alla compagnia, e cita solo la Questura; aggiunge le regole sulla carta d'identità che la fonte dà per il viaggio con i genitori."
+      }
     }
   },
   {
@@ -32,6 +152,36 @@
     "domanda": "Un minorenne può viaggiare all'estero con la sola carta d'identità?",
     "risposta_in": {
       "documentidiviaggio/documentiperviaggiallesteroperminori": "documento di viaggio individuale (Passaporto individuale oppure Carta di Identità valida per"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Sì. Un minorenne italiano può viaggiare all’estero con la **carta d’identità valida per l’espatrio**, purché il Paese di destinazione la accetti; in alternativa serve il passaporto individuale.\n\nPer i minori di 14 anni:\n\n- se viaggiano con almeno un genitore o con chi ne fa le veci, questi possono essere indicati sulla carta d’identità;\n- se non sono indicati, la fonte consiglia di portare un certificato di stato di famiglia o un estratto di nascita;\n- se viaggiano con un altro adulto, un ente o una compagnia di trasporto, può essere necessaria la **Dichiarazione di Accompagnamento**, vistata dalla Questura in Italia o dal Consolato all’estero.\n\nLa compagnia di trasporto potrebbe applicare proprie condizioni: è opportuno verificarle prima dell’acquisto del biglietto. Per confermare il documento accettato occorre inoltre controllare i requisiti del Paese specifico.\n\n**Fonte:** Ministero degli Affari Esteri, “Documenti per viaggi all’estero di minori”  \nhttps://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio  \n**Data di aggiornamento:** non indicata dalla fonte.\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/documentiperviaggiallesteroperminori"
+          }
+        }
+      ],
+      "secondi": 8.6,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13934,
+        "input_da_cache": 12354,
+        "output": 378,
+        "output_ragionamento": 13,
+        "totale": 14312
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Carta d'identità valida per l'espatrio se il Paese la accetta, passaporto in alternativa, regole per i minori di 14 anni, Questura o Consolato."
+      }
     }
   },
   {
@@ -39,6 +189,36 @@
     "domanda": "Per quanto tempo vale al massimo la dichiarazione di accompagnamento di un minore?",
     "risposta_in": {
       "documentidiviaggio/documentiperviaggiallesteroperminori": "con destinazione determinata e non può superare i 6(sei) mesi"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "La **Dichiarazione di Accompagnamento** di un minore può riguardare un solo viaggio, con destinazione determinata, e avere una durata **massima di 6 mesi**. Deve essere vistata dalla **Questura in Italia** o dal **Consolato all’estero**.\n\nFonte: [Documenti per viaggi all’estero di minori](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio) — data di aggiornamento non indicata dalla guida.\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/documentiperviaggiallesteroperminori"
+          }
+        }
+      ],
+      "secondi": 7.4,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13935,
+        "input_da_cache": 12353,
+        "output": 215,
+        "output_ragionamento": 15,
+        "totale": 14150
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Un solo viaggio, destinazione determinata, massimo sei mesi, visto della Questura o del Consolato."
+      }
     }
   },
   {
@@ -46,6 +226,36 @@
     "domanda": "Si può viaggiare con la ricevuta della carta d'identità elettronica in attesa della CIE?",
     "risposta_in": {
       "documentidiviaggio/documentiperviaggiallestero": "la ricevuta della Carta di Identità Elettronica (CIE) NON è utilizzabile come documento di viaggio"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "No. **La ricevuta della Carta d’Identità Elettronica (CIE) non è utilizzabile come documento di viaggio all’estero.** Occorre avere un documento valido per l’espatrio, verificando anche che sia accettato dal Paese di destinazione.\n\nIn caso di urgenza, il Comune può rilasciare un **documento d’identità provvisorio cartaceo valido per l’espatrio**, con validità massima di 6 mesi; tuttavia, alcuni Stati potrebbero non accettarlo. Verificare la sezione **“Requisiti di ingresso”** della destinazione o contattare l’Ambasciata/il Consolato del Paese.\n\n**Fonte:** ViaggiareSicuri – [Documenti per viaggi all’estero](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio). La guida non riporta una data di aggiornamento.  \nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/documentiperviaggiallestero"
+          }
+        }
+      ],
+      "secondi": 8.5,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14228,
+        "input_da_cache": 12374,
+        "output": 310,
+        "output_ragionamento": 18,
+        "totale": 14538
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "La ricevuta della CIE non vale come documento di viaggio; documento provvisorio del Comune per sei mesi, con possibile non accettazione."
+      }
     }
   },
   {
@@ -53,6 +263,36 @@
     "domanda": "Fino a quando si può ancora espatriare con la vecchia carta d'identità di carta?",
     "risposta_in": {
       "documentidiviaggio/documentiperviaggiallestero": "cesseranno in ogni caso di avere validità il 3 agosto 2026"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "La **carta d’identità cartacea valida per l’espatrio** cesserà comunque di essere valida il **3 agosto 2026**. Fino a quella data può essere utilizzata solo nei Paesi che la riconoscono e purché sia valida per tutta la durata del soggiorno.\n\nPrima della partenza va verificata la **Sezione “Requisiti di ingresso” del Paese di destinazione**: alcuni Paesi potrebbero non accettarla. La guida non riporta una data di aggiornamento.\n\nFonte: [ViaggiareSicuri – Documenti per viaggi all’estero](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio)\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/documentiperviaggiallestero"
+          }
+        }
+      ],
+      "secondi": 7.6,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14218,
+        "input_da_cache": 12366,
+        "output": 253,
+        "output_ragionamento": 16,
+        "totale": 14471
+      },
+      "verifica": {
+        "esito": "fuorviante",
+        "nota": "Stesso errore della prima esecuzione: presenta il 3 agosto 2026 come data futura («cesserà», «fino a quella data») il 16/09/2026, quando la carta cartacea non vale già più per l'espatrio. Il modello non riceve la data corrente."
+      }
     }
   },
   {
@@ -60,6 +300,36 @@
     "domanda": "Un cliente ha la carta d'identità scaduta e parte tra pochi giorni: il Comune può dargli un documento valido per l'estero?",
     "risposta_in": {
       "documentidiviaggio/documentiperviaggiallestero": "i Comuni italiani potranno rilasciare un documento di identità provvisorio cartaceo"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Sì. Per documentati motivi d’urgenza, il Comune può rilasciare un **documento di identità provvisorio cartaceo valido per l’espatrio**, contestualmente alla presentazione della richiesta della nuova CIE.\n\n- Validità massima: **6 mesi**.\n- Non è rinnovabile.\n- Il rilascio da parte dei Comuni è previsto fino al **31 dicembre 2027**.\n- Il documento potrebbe **non essere accettato da alcuni Stati** che ammettono invece l’ingresso con CIE valida per l’espatrio: va verificata la destinazione sulla relativa scheda di ViaggiareSicuri.it e, se necessario, presso l’Ambasciata o il Consolato del Paese.\n- La **ricevuta della richiesta della CIE non è utilizzabile** come documento di viaggio all’estero.\n\nLa guida precisa inoltre che la carta d’identità deve essere valida almeno per tutta la durata del soggiorno; per il passaporto, alcuni Paesi richiedono anche una validità residua di diversi mesi.\n\n**Fonte:** [Documenti per viaggi all’estero](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio) — aggiornamento: **non indicato dalla guida**.  \nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/documentiperviaggiallestero"
+          }
+        }
+      ],
+      "secondi": 9.3,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14248,
+        "input_da_cache": 12396,
+        "output": 380,
+        "output_ragionamento": 16,
+        "totale": 14628
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Documento provvisorio del Comune: sei mesi, non rinnovabile, fino al 31/12/2027, possibile non accettazione; la ricevuta della CIE non vale."
+      }
     }
   },
   {
@@ -67,6 +337,30 @@
     "domanda": "A chi bisogna rivolgersi per ottenere un visto?",
     "risposta_in": {
       "documentidiviaggio/documentiperviaggiallestero": "oppure al proprio Agente di Viaggio"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Le guide generali di **Viaggiare Sicuri** non indicano a chi rivolgersi per ottenere un visto. Serve conoscere il **Paese di destinazione**: posso verificare i requisiti d’ingresso e le eventuali esenzioni dal visto per quel Paese.\n\nFonte: [Guide generali – Viaggiare Sicuri](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) e [Documenti di viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio), **senza data di aggiornamento pubblicata**.\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        }
+      ],
+      "secondi": 7.5,
+      "token": {
+        "chiamate_modello": 2,
+        "input": 8415,
+        "input_da_cache": 7872,
+        "output": 306,
+        "output_ragionamento": 128,
+        "totale": 8721
+      },
+      "verifica": {
+        "esito": "rifiuto errato",
+        "nota": "Come nella prima esecuzione dice che le guide non indicano a chi rivolgersi per il visto, ma «Documenti per viaggi all'estero» lo dice: Ambasciata o Consolato del Paese di destinazione in Italia, oppure il proprio Agente di Viaggio. Legge solo il sommario."
+      }
     }
   },
   {
@@ -74,6 +368,36 @@
     "domanda": "Quanto tempo prima della partenza va fatto il consulto medico?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "Questo consulto dovrebbe avvenire almeno 4-6 settimane prima della partenza"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Il consulto presso un ambulatorio di Medicina del Viaggiatore o con il medico curante va fatto **almeno 4–6 settimane prima della partenza**, soprattutto per viaggi lunghi. Serve a valutare rischi, vaccinazioni, eventuale profilassi antimalarica e farmaci o dispositivi da portare. Per persone con patologie preesistenti o più vulnerabili è particolarmente importante consultare il medico prima del viaggio.\n\n**Fonte:** [Viaggiare Sicuri – Salute in viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento.\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono un parere sanitario.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 8.4,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14246,
+        "input_da_cache": 12342,
+        "output": 243,
+        "output_ragionamento": 16,
+        "totale": 14489
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Almeno 4-6 settimane prima, soprattutto per viaggi lunghi."
+      }
     }
   },
   {
@@ -81,6 +405,36 @@
     "domanda": "Quante scorte delle proprie medicine abituali conviene mettere in valigia?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "portare eventuali trattamenti abituali possibilmente in quantità sufficiente per tre mesi"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Il Ministero consiglia di portare le medicine delle terapie abituali in quantità sufficiente **possibilmente per tre mesi**. La quantità va comunque valutata con il medico in base alla durata e alle caratteristiche del viaggio.\n\nPer farmaci o dispositivi necessari, potrebbe servire un certificato medico che ne attesti la necessità per il trasporto in aereo e l’ingresso in alcuni Paesi.\n\n**Fonte:** [Viaggiare Sicuri – Salute in viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento.\n\nLe informazioni possono variare: prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono un parere medico.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 7.5,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14257,
+        "input_da_cache": 12352,
+        "output": 234,
+        "output_ragionamento": 17,
+        "totale": 14491
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Scorta per tre mesi e certificati per farmaci e dispositivi."
+      }
     }
   },
   {
@@ -88,6 +442,36 @@
     "domanda": "Un cliente diabetico deve portare siringhe in aereo: gli serve un certificato medico?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "Certificato che attesti la necessità di trasportare alcuni dispositivi medicali (per es. siringhe)"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Sì: il Ministero indica di richiedere al medico un **certificato che attesti la necessità di trasportare dispositivi medicali, per esempio le siringhe**, per viaggiare in aereo e per entrare in alcuni Paesi. Per un cliente diabetico è quindi opportuno procurarsi il certificato prima della partenza e verificare anche le regole della compagnia aerea e del Paese di destinazione.\n\n**Fonte:** Ministero degli Affari Esteri, [Salute in viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento. Le informazioni possono variare: prima della partenza vanno verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 11.2,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14306,
+        "input_da_cache": 12384,
+        "output": 264,
+        "output_ragionamento": 34,
+        "totale": 14570
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Certificato per i dispositivi medicali come le siringhe, per l'aereo e l'ingresso in alcuni Paesi."
+      }
     }
   },
   {
@@ -95,6 +479,36 @@
     "domanda": "Cos'è la tessera TEAM e in quali Paesi vale?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "dà diritto ai cittadini dei 27 Stati membri"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "La **TEAM** è la **Tessera Europea di Assicurazione Malattia**. Durante un soggiorno temporaneo consente di accedere più agevolmente alle cure mediche, alle stesse condizioni previste per i cittadini del Paese visitato.\n\nVale nei **27 Stati membri dell’Unione europea**, oltre che in:\n\n- Islanda\n- Liechtenstein\n- Norvegia\n- Svizzera\n\nLa fonte precisa che, per viaggiare in Europa, è necessario portarla con sé. La guida non ha una data di aggiornamento pubblicata.\n\n**Fonte:** Ministero degli Affari Esteri, [Salute in viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio).  \nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 7.8,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14246,
+        "input_da_cache": 12342,
+        "output": 263,
+        "output_ragionamento": 16,
+        "totale": 14509
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "TEAM e Stati corretti, con la stessa lettura ragionevole della prima esecuzione: la fonte parla dei cittadini dei 27 Stati UE più Islanda, Liechtenstein, Norvegia e Svizzera e degli «altri Stati europei che utilizzano la tessera»."
+      }
     }
   },
   {
@@ -102,6 +516,36 @@
     "domanda": "Per un trasferimento di lavoro di lunga durata possono chiedere un test dell'HIV?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "la certificazione che attesta la negatività degli anticorpi per il virus"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Sì. La guida generale di **Viaggiare Sicuri** indica che alcuni Stati possono richiedere un certificato che attesti la negatività degli anticorpi per l’HIV, **ma solo a chi intende risiedere a lungo nel Paese per motivi di lavoro o studio**.\n\nPer sapere se vale per la destinazione specifica, serve verificare la scheda del Paese e rivolgersi all’ambasciata o al consolato competente; per gli aspetti sanitari, anche al medico o a un ambulatorio di Medicina del Viaggiatore.\n\n**Fonte:** [Viaggiare Sicuri – Salute in viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento.\n\nLe informazioni possono variare: prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 9.5,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14269,
+        "input_da_cache": 12355,
+        "output": 283,
+        "output_ragionamento": 24,
+        "totale": 14552
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Certificazione HIV richiesta da alcuni Stati solo per soggiorni lunghi di lavoro o studio."
+      }
     }
   },
   {
@@ -109,6 +553,42 @@
     "domanda": "Un cliente non vedente viaggia con il cane guida: cosa deve verificare prima di partire?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "si raccomanda di controllare se nel Paese di destinazione sono previsti periodi di quarantena per gli animali"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Prima di partire, il cliente non vedente che viaggia con un cane guida deve verificare:\n\n- **le condizioni di trasporto** con la compagnia aerea, ferroviaria o marittima;\n- **se il Paese di destinazione prevede periodi di quarantena per gli animali**.\n\nInoltre, per i documenti personali, deve controllare i requisiti del Paese di destinazione: validità di passaporto o carta d’identità per l’espatrio e, se richiesto, visto. Per gli aspetti specifici del cane guida — documentazione, vaccinazioni, eventuale quarantena e modalità di imbarco — è opportuno verificare con la compagnia di trasporto e con le autorità del Paese di destinazione.\n\n**Fonte:**  \n- *Preparare un viaggio > Salute in viaggio*: https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio — guida senza data di aggiornamento pubblicata.  \n- *Documenti di viaggio > Documenti per viaggi all’estero*: https://www.viaggiaresicuri.it/approfondimenti-insights/documentidiviaggio — guida senza data di aggiornamento pubblicata.\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "documentidiviaggio/documentiperviaggiallestero"
+          }
+        }
+      ],
+      "secondi": 13.0,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 15704,
+        "input_da_cache": 12390,
+        "output": 486,
+        "output_ragionamento": 102,
+        "totale": 16190
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Condizioni di trasporto con le compagnie e quarantena per gli animali. Apre due sezioni invece di tre e aggiunge i documenti di viaggio, che non erano stati chiesti."
+      }
     }
   },
   {
@@ -116,6 +596,36 @@
     "domanda": "Dove si trovano informazioni aggiornate sulle malattie infettive dei viaggiatori?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "si può consultare la pagina dedicata del Ministero della Salute - Malattie infettive dei viaggiatori"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Le informazioni aggiornate sulle **malattie infettive dei viaggiatori**, comprese le vaccinazioni, si trovano nella pagina del **Ministero della Salute**:  \nhttps://www.salute.gov.it/new/it/tema/malattie-infettive-dei-viaggiatori/\n\nPer indicazioni personalizzate, la guida consiglia di rivolgersi a un **ambulatorio di Medicina del Viaggiatore** o al proprio medico, idealmente **4–6 settimane prima della partenza**.\n\n**Fonte:** ViaggiareSicuri – *Preparare un viaggio > Salute in viaggio*  \nhttps://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio  \n**Data di aggiornamento:** non indicata dalla fonte.\n\nLe informazioni possono variare: prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 9.6,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14290,
+        "input_da_cache": 12367,
+        "output": 281,
+        "output_ragionamento": 32,
+        "totale": 14571
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Rimando al Ministero della Salute con lo stesso link della fonte."
+      }
     }
   },
   {
@@ -123,6 +633,36 @@
     "domanda": "Quali viaggiatori devono parlare con il medico prima di partire perché più fragili?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "come i bambini, gli anziani, le donne incinte e le persone con sistema immunitario compromesso"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Devono parlare con il medico prima della partenza soprattutto:\n\n- persone con problemi di salute preesistenti;\n- bambini;\n- anziani;\n- donne incinte;\n- persone con sistema immunitario compromesso.\n\nIl consulto è consigliato anche prima di viaggiare in Paesi dove sono presenti malattie infettive: preferibilmente presso un ambulatorio di Medicina del Viaggiatore o con il medico curante, almeno **4–6 settimane prima**, soprattutto per viaggi lunghi. Serve a valutare i fattori di rischio, le vaccinazioni, eventuali profilassi antimalariche, i medicinali e i dispositivi sanitari necessari.\n\n**Fonte:** [Viaggiaresicuri.it – Salute in viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio). La guida non riporta una data di aggiornamento.  \nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 7.7,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14268,
+        "input_da_cache": 12360,
+        "output": 289,
+        "output_ragionamento": 18,
+        "totale": 14557
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Patologie preesistenti, bambini, anziani, donne incinte, persone immunocompromesse."
+      }
     }
   },
   {
@@ -130,6 +670,36 @@
     "domanda": "Se per motivi di salute non si può fare il vaccino della febbre gialla, cosa serve?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "Esenzione dalla vaccinazione per la Febbre Gialla (per paesi che la richiedono obbligatoriamente)"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Serve un **certificato di esenzione dalla vaccinazione contro la febbre gialla**, rilasciato dal medico preposto, soprattutto se il Paese di destinazione lo richiede obbligatoriamente.\n\nIl Ministero consiglia di rivolgersi **4–6 settimane prima della partenza** a un ambulatorio di Medicina dei Viaggi o al medico curante, per verificare le vaccinazioni obbligatorie e la documentazione valida per il Paese specifico. Per indicazioni sanitarie aggiornate, consultare anche il **Ministero della Salute** o il centro vaccinale.\n\n**Fonte:** [Salute in viaggio – Ministero degli Affari Esteri](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento.  \nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 10.2,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14314,
+        "input_da_cache": 12384,
+        "output": 304,
+        "output_ragionamento": 38,
+        "totale": 14618
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Certificato di esenzione dal medico preposto per i Paesi che richiedono la vaccinazione."
+      }
     }
   },
   {
@@ -137,6 +707,36 @@
     "domanda": "Dove bisogna andare prima di un viaggio in un Paese con malattie infettive?",
     "risposta_in": {
       "preparaunviaggio/saluteinviaggio": "si consiglia di recarsi in un ambulatorio di Medicina del Viaggiatore"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Prima di partire per un Paese dove sono presenti malattie infettive, bisogna rivolgersi a un **ambulatorio di Medicina del Viaggiatore** oppure al **proprio medico curante**, idealmente **4–6 settimane prima della partenza**.\n\nIl consulto serve a valutare:\n\n- fattori di rischio individuali;\n- vaccinazioni consigliate o obbligatorie;\n- eventuale profilassi antimalarica;\n- farmaci e dispositivi sanitari da portare;\n- certificati medici eventualmente richiesti per farmaci, dispositivi o esenzioni vaccinali.\n\nPer informazioni aggiornate su malattie infettive e vaccinazioni, la guida rimanda anche al **Ministero della Salute – Malattie infettive dei viaggiatori**:  \nhttps://www.salute.gov.it/new/it/tema/malattie-infettive-dei-viaggiatori/\n\n**Fonte:** Ministero degli Affari Esteri, guida “Preparare un viaggio > Salute in viaggio”  \nhttps://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio  \n**Data di aggiornamento:** non indicata dalla guida.\n\nLe informazioni possono variare: prima della partenza vanno verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 7.9,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14292,
+        "input_da_cache": 12375,
+        "output": 362,
+        "output_ragionamento": 27,
+        "totale": 14654
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Ambulatorio di Medicina del Viaggiatore o medico curante, 4-6 settimane prima, link del Ministero della Salute."
+      }
     }
   },
   {
@@ -144,6 +744,42 @@
     "domanda": "Fuori dall'Unione Europea le cure mediche sono gratuite?",
     "risposta_in": {
       "preparaunviaggio/assicurazionediviaggio": "Nei Paesi dove non c'è un accordo apposito, l'assistenza sanitaria non è gratuita."
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "No. **Nei Paesi extra UE dove non esiste un accordo sanitario specifico, l’assistenza sanitaria non è gratuita**. Il Ministero consiglia di stipulare un’assicurazione sanitaria con massimale adeguato, che copra cure, terapie, eventuali trasferimenti e rimpatrio sanitario.\n\nNei Paesi UE, in Svizzera, Norvegia, Islanda, Liechtenstein e negli Stati con accordi appositi, è possibile usufruire dell’assistenza prevista presentando la documentazione richiesta, in particolare la **TEAM** quando applicabile.\n\nLe Ambasciate e i Consolati italiani non garantiscono il pagamento diretto delle spese private; solo in casi eccezionali possono concedere prestiti a connazionali in comprovata indigenza, da rimborsare allo Stato.\n\n**Fonte:** [Assicurazione di viaggio e sanitaria – ViaggiareSicuri](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio). La guida non riporta una data di aggiornamento. Per i dettagli sugli accordi sanitari, consultare anche il [Ministero della Salute](https://www.salute.gov.it/new/it/tema/assistenza-sanitaria-paesi-extra-ue/).\n\nLe informazioni possono variare: prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/assicurazionediviaggio"
+          }
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 10.5,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 15332,
+        "input_da_cache": 12352,
+        "output": 467,
+        "output_ragionamento": 63,
+        "totale": 15799
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Fuori dall'UE, senza accordi, l'assistenza non è gratuita; polizza adeguata; TEAM per UE e Paesi convenzionati; link corretto."
+      }
     }
   },
   {
@@ -151,6 +787,36 @@
     "domanda": "Cosa deve coprire la polizza sanitaria per un viaggio fuori dall'Europa?",
     "risposta_in": {
       "preparaunviaggio/assicurazionediviaggio": "un adeguato massimale, tale da coprire non solo le spese di cure mediche"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Per un viaggio **fuori dall’UE e dai Paesi con accordi sanitari**, la Farnesina consiglia una polizza con un **massimale adeguato** che copra:\n\n- cure mediche e terapie presso strutture ospedaliere e sanitarie locali;\n- eventuale trasferimento aereo in un altro Paese;\n- rimpatrio sanitario, nei casi più gravi anche con aeroambulanza.\n\nVerificate inoltre con attenzione le coperture già incluse nel pacchetto turistico o nelle escursioni: se non sono sufficienti, è consigliabile stipulare una polizza sanitaria individuale. Le strutture private in molti Paesi possono avere costi elevati e ambasciate e consolati italiani non garantiscono pagamenti diretti di spese private.\n\n**Fonte:** [Viaggiare Sicuri – Assicurazione di viaggio e sanitaria](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio). La guida non riporta una data di aggiornamento. Per informazioni generali sull’assistenza sanitaria nei Paesi extra UE, consultare anche il [Ministero della Salute](https://www.salute.gov.it/new/it/tema/assistenza-sanitaria-paesi-extra-ue/).\n\nLe informazioni possono variare: prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/assicurazionediviaggio"
+          }
+        }
+      ],
+      "secondi": 7.8,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13922,
+        "input_da_cache": 12362,
+        "output": 375,
+        "output_ragionamento": 20,
+        "totale": 14297
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Cure e terapie, trasferimento aereo, rimpatrio con aeroambulanza; verifica delle coperture di pacchetti ed escursioni."
+      }
     }
   },
   {
@@ -158,6 +824,42 @@
     "domanda": "Se un cliente si ammala all'estero e non riesce a pagare, il consolato copre le spese?",
     "risposta_in": {
       "preparaunviaggio/assicurazionediviaggio": "non possono garantire pagamenti diretti di carattere privato"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "In generale, **no**: il consolato non può garantire pagamenti diretti di spese mediche private. Solo in casi eccezionali, gravi e urgenti, può concedere a un cittadino italiano non residente **un prestito con promessa di restituzione**, se si trova in una situazione di comprovata indigenza. Il prestito deve essere rimborsato allo Stato dopo il rientro in Italia, di norma entro 90 giorni.\n\nPer i viaggi extra UE, il Ministero raccomanda un’assicurazione sanitaria con massimale adeguato, comprensiva — se necessario — di cure, trasferimento in altro Paese e rimpatrio sanitario. Nei Paesi senza accordi sanitari appositi, l’assistenza non è gratuita.\n\n**Fonte:** [Viaggiare Sicuri – Assicurazione di viaggio e sanitaria](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento.\n\nLe informazioni possono variare: prima della partenza vanno verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/assicurazionediviaggio"
+          }
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 10.8,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 15324,
+        "input_da_cache": 12381,
+        "output": 375,
+        "output_ragionamento": 26,
+        "totale": 15699
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Nessun pagamento diretto; prestiti eccezionali a non residenti indigenti, da rimborsare di norma entro 90 giorni."
+      }
     }
   },
   {
@@ -165,6 +867,30 @@
     "domanda": "Entro quanto tempo vanno restituiti i prestiti concessi dal consolato?",
     "risposta_in": {
       "preparaunviaggio/assicurazionediviaggio": "rimborsati allo Stato dopo il rientro in Italia, di norma entro 90 giorni"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Le guide generali di **Viaggiare Sicuri** non riportano i tempi di restituzione dei prestiti concessi dal consolato. Per il termine applicabile al caso concreto, occorre contattare il consolato competente o verificare l’atto di concessione del prestito.\n\nFonte: [Viaggiare Sicuri – Guide generali](https://www.viaggiaresicuri.it/approfondimenti-insights), senza data di aggiornamento pubblicata. Le informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        }
+      ],
+      "secondi": 9.2,
+      "token": {
+        "chiamate_modello": 2,
+        "input": 8442,
+        "input_da_cache": 7884,
+        "output": 216,
+        "output_ragionamento": 72,
+        "totale": 8658
+      },
+      "verifica": {
+        "esito": "rifiuto errato",
+        "nota": "Come nella prima esecuzione dice che le guide non riportano i tempi, ma «Assicurazione di viaggio e sanitaria» scrive «di norma entro 90 giorni». Cita inoltre un URL che nessun tool ha restituito (viaggiaresicuri.it/approfondimenti-insights)."
+      }
     }
   },
   {
@@ -172,6 +898,36 @@
     "domanda": "L'assicurazione di viaggio serve solo per le spese mediche o copre anche i bagagli?",
     "risposta_in": {
       "preparaunviaggio/assicurazionediviaggio": "proteggere contro il furto o smarrimento dei bagagli"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "No. Secondo la guida del Ministero, un’assicurazione di viaggio può includere, oltre all’assistenza sanitaria:\n\n- furto o smarrimento dei bagagli;\n- annullamento, modifica o cancellazione del viaggio.\n\nLa copertura dipende dalla polizza: va quindi verificato il contratto, comprese garanzie, esclusioni e massimali. Per i viaggi extra UE, la guida raccomanda inoltre una copertura sanitaria adeguata anche per eventuale trasferimento aereo o rimpatrio sanitario.\n\n**Fonte:** [Assicurazione di viaggio e sanitaria](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non indica una data di aggiornamento. Le informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/assicurazionediviaggio"
+          }
+        }
+      ],
+      "secondi": 8.5,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13928,
+        "input_da_cache": 12371,
+        "output": 261,
+        "output_ragionamento": 17,
+        "totale": 14189
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Oltre all'assistenza sanitaria: furto o smarrimento dei bagagli, annullamento, modifica o cancellazione."
+      }
     }
   },
   {
@@ -179,6 +935,42 @@
     "domanda": "La copertura inclusa in un pacchetto turistico basta o conviene farne un'altra?",
     "risposta_in": {
       "preparaunviaggio/assicurazionediviaggio": "controllate attentamente il contenuto delle assicurazioni sanitarie comprese nei pacchetti di viaggio"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "La copertura inclusa **non va considerata automaticamente sufficiente**: va verificato cosa comprende e con quali massimali, franchigie ed esclusioni. Se le garanzie non sono adeguate, la Farnesina consiglia di stipulare una polizza individuale.\n\nControllate in particolare che copra:\n\n- spese mediche e ospedaliere;\n- trasferimento aereo in un altro Paese;\n- rimpatrio sanitario, anche con aeroambulanza nei casi più gravi;\n- assistenza sanitaria 24/7;\n- annullamento, modifica o cancellazione del viaggio;\n- furto o smarrimento dei bagagli.\n\nPer i viaggi **extra UE**, l’assicurazione sanitaria è particolarmente importante perché l’assistenza può non essere gratuita e le strutture private possono avere costi elevati. Anche per escursioni prenotate durante il viaggio va verificata la copertura.\n\n**Fonte:** [Assicurazione di viaggio e sanitaria](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento.  \n**Avvertenza:** le informazioni possono variare; prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/assicurazionediviaggio"
+          }
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/pacchittituristici"
+          }
+        }
+      ],
+      "secondi": 11.0,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14964,
+        "input_da_cache": 12371,
+        "output": 408,
+        "output_ragionamento": 31,
+        "totale": 15372
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Coperture del pacchetto da verificare, polizza individuale se inadeguate, con l'assistenza sanitaria 24/7 e l'annullamento citati dalla sezione sui pacchetti."
+      }
     }
   },
   {
@@ -186,6 +978,46 @@
     "domanda": "Un cliente ha paura di partire per la situazione internazionale: può disdire senza penali?",
     "risposta_in": {
       "preparaunviaggio/pacchittituristici": "Gli stati soggettivi e personali, come il timore o la preoccupazione, non valgono da soli a giustificare un recesso senza penali."
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Il **solo timore o preoccupazione per la situazione internazionale non dà, di per sé, diritto a disdire un pacchetto turistico senza penali**. Il recesso è disciplinato dall’art. 41 del Codice del Turismo; per verificare il caso concreto bisogna controllare le condizioni contrattuali e rivolgersi all’agenzia o al tour operator.\n\nÈ inoltre opportuno verificare se il pacchetto comprende, o se è stata acquistata, una **copertura assicurativa per l’annullamento**. Gli avvisi della Farnesina hanno valore informativo e precauzionale, ma non modificano automaticamente il contratto. Il Ministero non interviene nei rapporti contrattuali tra cliente, agenzia, tour operator e assicurazione.\n\n**Fonte:** [Pacchetti turistici – ViaggiareSicuri](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — data di aggiornamento non indicata dalla guida.\n\nLe informazioni possono variare: prima di procedere verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono un parere legale.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/pacchettituristici"
+          }
+        },
+        {
+          "errore_tool": "get_general_info",
+          "messaggio": "[unknown_topic] argomenti non validi per guide generali: preparaunviaggio/pacchettituristici. Valori ammessi: preparaunviaggio/saluteinviaggio, preparaunviaggio/assicurazionediviaggio, preparaunviaggio/pacchittituristici, documentidiviaggio/documentiperviaggiallestero, documentidiviaggio/documentipe"
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/pacchittituristici"
+          }
+        }
+      ],
+      "secondi": 12.6,
+      "token": {
+        "chiamate_modello": 4,
+        "input": 18753,
+        "input_da_cache": 17005,
+        "output": 375,
+        "output_ragionamento": 42,
+        "totale": 19128
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Timore e preoccupazione non bastano per il recesso senza penali; art. 41 del Codice del Turismo. Alla prima lettura ha «corretto» il refuso dell'id della fonte: l'errore con gli id validi gli ha permesso di riprovare, al costo di una chiamata in più."
+      }
     }
   },
   {
@@ -193,6 +1025,36 @@
     "domanda": "Un avviso della Farnesina dà diritto ad annullare il contratto di viaggio?",
     "risposta_in": {
       "preparaunviaggio/pacchittituristici": "hanno valore informativo e precauzionale, ma non forza di legge tale da incidere su un contratto"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "No. **Un avviso della Farnesina, da solo, non dà automaticamente diritto ad annullare il contratto di viaggio senza penali**: ha valore informativo e precauzionale, ma non forza di legge sul contratto.\n\nPer i pacchetti turistici, il recesso è disciplinato dall’art. 41 del Codice del Turismo. Il semplice timore o la preoccupazione personale non bastano; occorre valutare il caso concreto, il contratto e le eventuali coperture assicurative con agenzia e tour operator. Il Ministero non interviene nei rapporti contrattuali tra cliente, agenzia, tour operator e assicurazione.\n\n**Fonte:** [Pacchetti turistici – viaggiaresicuri.it](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — la guida non riporta una data di aggiornamento.  \nLe informazioni possono variare: prima della partenza verificate le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/pacchittituristici"
+          }
+        }
+      ],
+      "secondi": 8.5,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13908,
+        "input_da_cache": 12359,
+        "output": 296,
+        "output_ragionamento": 14,
+        "totale": 14204
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Gli avvisi hanno valore informativo e precauzionale, non forza di legge sul contratto; art. 41 e caso concreto."
+      }
     }
   },
   {
@@ -200,6 +1062,36 @@
     "domanda": "Che obblighi ha il tour operator verso un viaggiatore in difficoltà all'estero?",
     "risposta_in": {
       "preparaunviaggio/pacchittituristici": "fornendo informazioni riguardo a servizi sanitari, autorità locali, assistenza consolare"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Per un viaggiatore in difficoltà all’estero, l’organizzatore di un **pacchetto turistico** ha un obbligo di assistenza. In particolare deve:\n\n- fornire informazioni su **servizi sanitari**, **autorità locali** e **assistenza consolare**;\n- prestare assistenza nelle **comunicazioni a distanza**;\n- rispondere più ampiamente dell’esecuzione del pacchetto, secondo la normativa sui pacchetti turistici.\n\nIl viaggiatore, a sua volta, è responsabilizzato se si espone deliberatamente a rischi conoscibili con la normale diligenza, salvo giustificati motivi legati all’attività professionale.\n\nLa scheda precisa che il Ministero degli Affari Esteri è estraneo ai rapporti contrattuali tra cliente, tour operator, agenzia e assicurazione. Per il caso concreto è quindi opportuno verificare il contratto e rivolgersi a tour operator, agenzia, compagnia assicurativa o a un professionista competente.\n\n**Fonte:** [Pacchetti turistici – viaggiaresicuri.it](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio). La guida non riporta una data di aggiornamento. Informazioni di orientamento preliminare: possono variare e, prima della partenza o nella gestione del caso specifico, vanno verificate le indicazioni ufficiali applicabili. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/pacchittituristici"
+          }
+        }
+      ],
+      "secondi": 10.0,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13917,
+        "input_da_cache": 12357,
+        "output": 393,
+        "output_ragionamento": 23,
+        "totale": 14310
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Obbligo di assistenza dell'organizzatore e responsabilità del viaggiatore che si espone deliberatamente a rischi, entrambi nella sezione."
+      }
     }
   },
   {
@@ -207,31 +1099,205 @@
     "domanda": "La Farnesina interviene nelle controversie fra cliente e agenzia di viaggio?",
     "risposta_in": {
       "preparaunviaggio/pacchittituristici": "rimane estraneo a qualunque rapporto di natura privatistica"
+    },
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "No. Il Ministero degli Affari Esteri e della Cooperazione Internazionale **rimane estraneo alle controversie privatistiche** tra cliente, agenzia di viaggio e tour operator, comprese quelle relative al contratto di viaggio e alle coperture assicurative.\n\nInoltre, gli avvisi della Farnesina hanno valore **informativo e precauzionale**, ma non forza di legge tale da modificare automaticamente un contratto o giustificare un recesso senza penali.\n\nFonte: [ViaggiareSicuri – Pacchetti turistici](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio) — **data di aggiornamento non indicata dalla guida**.\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri legali o sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/pacchittituristici"
+          }
+        }
+      ],
+      "secondi": 8.7,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 13977,
+        "input_da_cache": 12392,
+        "output": 290,
+        "output_ragionamento": 50,
+        "totale": 14267
+      },
+      "verifica": {
+        "esito": "corretta",
+        "nota": "Il Ministero resta estraneo ai rapporti privatistici; gli avvisi non hanno forza di legge sul contratto."
+      }
     }
   },
   {
     "id": 31,
     "domanda": "Che cos'è la dengue e come si trasmette?",
-    "risposta_in": {}
+    "risposta_in": {},
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "La guida generale di **viaggiaresicuri.it** non spiega che cos’è la dengue né come si trasmette. Per informazioni aggiornate sulle malattie infettive dei viaggiatori, rimanda al **Ministero della Salute**:  \nhttps://www.salute.gov.it/new/it/tema/malattie-infettive-dei-viaggiatori/\n\nPrima di un viaggio in un Paese dove sono presenti malattie infettive, la guida consiglia di consultare un medico o un ambulatorio di Medicina del Viaggiatore, preferibilmente **4–6 settimane prima della partenza**.\n\n**Fonte:** https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio — guida generale senza data di aggiornamento pubblicata. Le informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 8.9,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14295,
+        "input_da_cache": 12359,
+        "output": 295,
+        "output_ragionamento": 44,
+        "totale": 14590
+      },
+      "verifica": {
+        "esito": "rifiuto corretto",
+        "nota": "Dice che la guida non tratta la dengue e rimanda al Ministero della Salute."
+      }
+    }
   },
   {
     "id": 32,
     "domanda": "Quali vaccinazioni sono obbligatorie per il Kenya?",
-    "risposta_in": {}
+    "risposta_in": {},
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Per il **Kenya**, è obbligatoria la vaccinazione contro la **febbre gialla** per i viaggiatori provenienti da Paesi a rischio di trasmissione:\n\n- anche in caso di solo transito aeroportuale superiore a **12 ore**;\n- in ogni caso se si lascia l’aeroporto di scalo, ad esempio durante un transito all’aeroporto di Addis Abeba.\n\nIn alcuni casi le autorità aeroportuali possono consentire la vaccinazione all’arrivo direttamente in aeroporto. Per la valutazione del caso specifico, il Ministero raccomanda di rivolgersi al proprio medico o Centro Vaccinale.\n\n**Fonte:** [Scheda Kenya – Viaggiare Sicuri](https://www.viaggiaresicuri.it/find-country/country/KEN), aggiornamento **8 luglio 2026**.  \nLe informazioni sono preliminari e possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico con il Centro Vaccinale o le autorità competenti.",
+      "tool": [
+        {
+          "tool": "find_country",
+          "argomenti": {
+            "query": "Kenya"
+          }
+        },
+        {
+          "tool": "get_health_info",
+          "argomenti": {
+            "country": "KEN",
+            "topics": [
+              "vaccinations"
+            ]
+          }
+        }
+      ],
+      "secondi": 8.6,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 12469,
+        "input_da_cache": 11893,
+        "output": 290,
+        "output_ragionamento": 26,
+        "totale": 12759
+      },
+      "verifica": {
+        "esito": "corretta con riserve",
+        "nota": "Risponde dalla scheda del Kenya con il contenuto del nodo Vaccinazioni. Scrive di nuovo «8 luglio 2026»: la data della fonte è 2026-07-08T22:00Z, cioè il 9 luglio in Italia."
+      }
+    }
   },
   {
     "id": 33,
     "domanda": "Come ci si protegge dalle punture di zanzara?",
-    "risposta_in": {}
+    "risposta_in": {},
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "La guida generale di **Viaggiaresicuri.it** non elenca misure specifiche contro le punture di zanzara. Indica però di:\n\n- consultare il medico o un ambulatorio di **Medicina del Viaggiatore** prima della partenza, idealmente **4–6 settimane prima**, soprattutto per Paesi con malattie infettive;\n- verificare vaccinazioni, eventuali farmaci antimalarici e altre misure di profilassi;\n- consultare le indicazioni aggiornate del **Ministero della Salute – Malattie infettive dei viaggiatori**: https://www.salute.gov.it/new/it/tema/malattie-infettive-dei-viaggiatori/\n\nFonte: [Preparare un viaggio > Salute in viaggio](https://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio). **Data di aggiornamento: non indicata dalla guida.**\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 7.6,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14261,
+        "input_da_cache": 12349,
+        "output": 304,
+        "output_ragionamento": 22,
+        "totale": 14565
+      },
+      "verifica": {
+        "esito": "rifiuto corretto",
+        "nota": "Dice che la guida non elenca misure contro le zanzare e rimanda al medico e al Ministero della Salute."
+      }
+    }
   },
   {
     "id": 34,
     "domanda": "Cosa si fa in caso di morso di serpente?",
-    "risposta_in": {}
+    "risposta_in": {},
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "La guida generale di Viaggiare Sicuri **non tratta le procedure di primo soccorso in caso di morso di serpente**. In una situazione reale, contattare immediatamente i **servizi di emergenza locali** e un medico; per indicazioni sanitarie aggiornate consultare anche il **Ministero della Salute**: https://www.salute.gov.it/new/it/tema/malattie-infettive-dei-viaggiatori/\n\n**Fonte:** Viaggiare Sicuri, “Salute in viaggio”  \nhttps://www.viaggiaresicuri.it/approfondimenti-insights/preparaunviaggio  \nLa guida non riporta una data di aggiornamento.\n\nLe informazioni possono variare: prima della partenza verificare le indicazioni ufficiali applicabili al caso specifico. Non sostituiscono pareri sanitari.",
+      "tool": [
+        {
+          "tool": "list_general_topics",
+          "argomenti": {}
+        },
+        {
+          "tool": "get_general_info",
+          "argomenti": {
+            "topic": "preparaunviaggio/saluteinviaggio"
+          }
+        }
+      ],
+      "secondi": 9.2,
+      "token": {
+        "chiamate_modello": 3,
+        "input": 14270,
+        "input_da_cache": 12344,
+        "output": 329,
+        "output_ragionamento": 96,
+        "totale": 14599
+      },
+      "verifica": {
+        "esito": "rifiuto corretto",
+        "nota": "Dice che la guida non tratta il morso di serpente e rimanda all'emergenza e al medico; il link del Ministero che aggiunge riguarda le malattie infettive, poco pertinente."
+      }
+    }
   },
   {
     "id": 35,
     "domanda": "Quanto costa un volo per Bangkok a marzo?",
-    "risposta_in": {}
+    "risposta_in": {},
+    "assistente": {
+      "eseguita_il": "2026-09-16",
+      "modello": "gpt-5.6-luna",
+      "risposta": "Il Ministero degli Affari Esteri non fornisce prezzi dei voli. Per una tariffa aggiornata per Bangkok a marzo occorre verificare con una compagnia aerea o un motore di ricerca voli, indicando aeroporto di partenza, date e bagaglio.",
+      "tool": [],
+      "secondi": 2.1,
+      "token": {
+        "chiamate_modello": 1,
+        "input": 3937,
+        "input_da_cache": 3934,
+        "output": 60,
+        "output_ragionamento": 0,
+        "totale": 3997
+      },
+      "verifica": {
+        "esito": "rifiuto corretto",
+        "nota": "Nessun tool chiamato: prezzi e voli non sono coperti."
+      }
+    }
   }
 ]

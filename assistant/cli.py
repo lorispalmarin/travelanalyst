@@ -1,7 +1,4 @@
 """CLI dell'assistente: una REPL che mostra anche quali tool sta usando.
-
-Il trace dei tool non è decorativo: serve a far vedere — in demo e in debug — che la risposta
-viene dal server MCP e non dalla memoria del modello.
 """
 
 from __future__ import annotations
