@@ -17,7 +17,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from .config import Settings, carica
 from .freshness import avviso as testo_avviso, estrai as estrai_freschezza
 from .mcp_tools import tool_del_server
-from .prompts import SYSTEM_PROMPT
+from .prompts import prompt_con_data
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,7 @@ async def apri_assistente(settings: Settings | None = None) -> AsyncIterator[Ass
         agent = create_agent(
             model=costruisci_modello(settings),
             tools=tools,
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=prompt_con_data(),
             checkpointer=InMemorySaver(),
             name="assistente-viaggiaresicuri",
         )

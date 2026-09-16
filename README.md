@@ -426,8 +426,8 @@ un'imprecisione.
 
 | Esito | Esecuzione 1 | Esecuzione 2 |
 |---|---|---|
-| Corretta | 25 su 30 | 26 su 30 |
-| Corretta con riserve | 5 su 30 (1, 4, 8, 10, 24) | 4 su 30 (4, 8, 10, 24) |
+| Corretta | 26 su 30 | 27 su 30 |
+| Corretta con riserve | 4 su 30 (1, 4, 10, 24) | 3 su 30 (4, 10, 24) |
 | Fuori copertura, dichiarata non trattata | 4 su 5 (31, 33, 34, 35) | 4 su 5 (31, 33, 34, 35) |
 | Fuori copertura, risposta dalla scheda paese con riserve | 1 su 5 (32) | 1 su 5 (32) |
 

@@ -6,6 +6,8 @@ citati nei commenti sono documentati in docs/schede-paese.md.
 
 from __future__ import annotations
 
+from datetime import date
+
 SYSTEM_PROMPT = """
 Sei l'assistente interno di un'agenzia di viaggi. Aiuti operatori e customer care a rispondere
 ai clienti su destinazioni internazionali. Parli italiano, in modo diretto e operativo: chi ti
@@ -122,3 +124,17 @@ con i soli contatti: è il documento da inoltrare al cliente.
 
 Chiudi con le fonti: link e data di aggiornamento, più l'avvertenza.
 """.strip()
+
+
+def prompt_con_data(oggi: date | None = None) -> str:
+    """Il system prompt con la data di oggi in testa.
+
+    Senza, il modello non sa se una scadenza della fonte è già passata: alla domanda su fino a
+    quando si può espatriare con la carta d'identità cartacea rispondeva che "cesserà" di valere
+    il 3 agosto 2026, un mese e mezzo dopo che era scaduta.
+    """
+    giorno = (oggi or date.today()).strftime("%d/%m/%Y")
+    return (
+        f"Oggi è il {giorno}.\n\n"
+        f"{SYSTEM_PROMPT}"
+    )

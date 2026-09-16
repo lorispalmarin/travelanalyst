@@ -94,6 +94,15 @@ class TestSystemPrompt:
     def test_dice_dove_stanno_le_normative_locali(self):
         assert "local_laws" in prompts.SYSTEM_PROMPT
 
+    def test_il_prompt_porta_la_data_di_oggi(self):
+        """Senza la data corrente il modello legge come futura una scadenza già passata."""
+        from datetime import date
+
+        testo = prompts.prompt_con_data(date(2026, 9, 16))
+        assert testo.startswith("Oggi è il 16/09/2026")
+        assert "non va presentata come futura" in testo
+        assert prompts.SYSTEM_PROMPT in testo
+
     def test_le_domande_generali_passano_dalle_guide(self):
         """Prima il sommario, poi la sezione: e se nessun titolo corrisponde, si dice."""
         testo = prompts.SYSTEM_PROMPT
